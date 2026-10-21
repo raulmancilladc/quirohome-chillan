@@ -24,6 +24,7 @@ export default function App() {
   const [pipCamId, setPipCamId] = useState<string>('');
   const [micId, setMicId] = useState<string>('');
   const [mirror, setMirror] = useState(true);
+  const [sourcesLoaded, setSourcesLoaded] = useState(false);
   const [micMuted, setMicMuted] = useState(false);
   const [audio, setAudio] = useState<AudioReport>({ level: 0, feedback: false, clipping: false });
   const [echoDismissed, setEchoDismissed] = useState(0);
@@ -42,6 +43,16 @@ export default function App() {
     c.background = background;
   }, [fit, zoom, rotation, background]);
 
+  // Guardar cámaras, micrófono y encuadre para la próxima vez (sin reescribir el resto).
+  useEffect(() => {
+    if (!sourcesLoaded) return;
+    const t = setTimeout(async () => {
+      const current = await window.quirolive.settings.get();
+      await window.quirolive.settings.set({ ...current, sources: { camId, pipCamId, micId, mirror, fit, zoom, rotation, background } });
+    }, 600);
+    return () => clearTimeout(t);
+  }, [sourcesLoaded, camId, pipCamId, micId, mirror, fit, zoom, rotation, background]);
+
   const compositor = useRef<Compositor | null>(null);
   const recorder = useRef<StreamRecorder | null>(null);
   const camStream = useRef<MediaStream | null>(null);
@@ -59,6 +70,17 @@ export default function App() {
   useEffect(() => {
     window.quirolive.settings.get().then((s) => {
       setSettings(s);
+      if (s.sources) {
+        setCamId(s.sources.camId);
+        setPipCamId(s.sources.pipCamId);
+        setMicId(s.sources.micId);
+        setMirror(s.sources.mirror);
+        setFit(s.sources.fit);
+        setZoom(s.sources.zoom);
+        setRotation(s.sources.rotation);
+        setBackground(s.sources.background);
+      }
+      setSourcesLoaded(true);
       const c = new Compositor(s.orientation);
       c.brandLabel = s.business.name;
       c.mirror = false;

@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.electron.json",
     "preview": "vite preview",
     "dist": "npm run build && electron-builder",
-    "dist:win": "npm run build && electron-builder --win",
-    "dist:mac": "npm run build && electron-builder --mac"
+    "dist:win": "npm run build && electron-builder --win --publish never",
+    "dist:mac": "npm run build && electron-builder --mac --publish never"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.137.0",
@@ -38,6 +38,7 @@
   "build": {
     "appId": "cl.quirohome.live",
     "productName": "QuiroHome Live",
+    "artifactName": "QuiroHome-Live-${version}-${os}-${arch}.${ext}",
     "files": [
       "dist/**",
       "dist-electron/**",
@@ -46,15 +47,43 @@
     "asarUnpack": [
       "node_modules/ffmpeg-static/**"
     ],
-    "win": {
-      "target": "nsis"
-    },
+    "npmRebuild": false,
     "mac": {
-      "target": "dmg",
-      "category": "public.app-category.video"
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.video",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "QuiroHome Live"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "language": "3082"
     },
     "linux": {
       "target": "AppImage"
-    }
+    },
+    "publish": null
   }
 }

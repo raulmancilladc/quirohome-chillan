@@ -135,9 +135,22 @@ export interface AnsweredRecord {
 
 export type RecordingQuality = 'stream' | 'high';
 
+export interface SourceSettings {
+  camId: string;
+  pipCamId: string;
+  micId: string;
+  mirror: boolean;
+  fit: 'cover' | 'contain';
+  zoom: number;
+  rotation: number;
+  background: 'blur' | 'dark' | 'brand';
+}
+
 export interface AppSettings {
   /** Versión de los datos por defecto cargados (negocio y FAQ). */
   defaultsVersion?: number;
+  /** Cámaras, micrófono y encuadre elegidos la última vez. */
+  sources?: SourceSettings;
   orientation: Orientation;
   fps: number;
   videoBitrateKbps: number;
