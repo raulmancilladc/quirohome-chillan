@@ -59,7 +59,7 @@ export default function App() {
       setSettings(s);
       const c = new Compositor(s.orientation);
       c.brandLabel = s.business.name;
-      c.mirror = true;
+      c.mirror = false;
       compositor.current = c;
       c.start();
     });
@@ -226,9 +226,8 @@ export default function App() {
     else showToast('No pude cambiar el volumen del sistema. Usa la tecla de silencio del teclado.');
   };
 
-  useEffect(() => {
-    if (compositor.current) compositor.current.mirror = mirror;
-  }, [mirror]);
+  // El espejo es solo para la vista previa: la transmisión y la grabación salen al derecho
+  // (así los textos, como el de la polera, se leen bien para el público).
 
   const save = useCallback(async (next: AppSettings) => {
     setSettings(next);
@@ -313,7 +312,7 @@ export default function App() {
       {tab === 'live' && (
         <div className="main">
           <div className="stage">
-            <Preview compositor={compositor.current} live={status.state === 'live'} />
+            <Preview compositor={compositor.current} live={status.state === 'live'} mirror={mirror} />
             {audio.feedback && Date.now() - echoDismissed > 60_000 && (
               <div className="echo-banner">
                 <strong>🔊 Se está escuchando eco o acople.</strong> El micrófono está captando los parlantes. Qué apagar, en orden:
