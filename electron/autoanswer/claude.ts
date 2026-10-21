@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { BusinessInfo, FaqEntry } from '../../shared/types';
 import { fillTemplate } from './engine';
+import knowledge from './knowledge.default.md?raw';
 
 const NO_ANSWER = 'NO_RESPONDER';
 
@@ -24,8 +25,14 @@ Información del negocio:
 Preguntas frecuentes ya preparadas:
 ${faqText}
 
+Base de conocimiento detallada del centro (servicios, precios, políticas, qué se trata y qué no, preguntas frecuentes):
+${knowledge}
+
 Reglas:
-- Responde en español chileno, cercano y breve (máximo 2 frases, ideal para un chat en vivo).
+- Hablas como Raúl Mancilla respondiendo en su live: español chileno, cercano, directo, en primera persona ("lo veo harto", "escríbeme y lo vemos"). Máximo 2 frases.
+- Cuando alguien cuenta un dolor o síntoma, no diagnostiques: di que eso lo ves seguido, que hay que evaluarlo en persona, y entrega el WhatsApp de la sede (o ambos si no se sabe la sede).
+- Nunca digas qué horas hay disponibles, nunca prometas resultados ni cantidad de sesiones, nunca ofrezcas nada gratis.
+- Ante accidente reciente, fractura, pérdida de fuerza o de control de esfínteres, cefalea súbita con fiebre: deriva a urgencias o médico, sin ofrecer hora.
 - Usa SOLO la información de arriba. Nunca inventes direcciones, precios, horarios ni datos médicos.
 - No des diagnósticos ni indicaciones médicas personalizadas; invita a evaluarse en consulta.
 - Si el mensaje no es una pregunta para el negocio, o no tienes la información, responde exactamente: ${NO_ANSWER}`;

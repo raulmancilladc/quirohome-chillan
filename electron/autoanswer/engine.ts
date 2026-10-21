@@ -1,5 +1,4 @@
 import type { BusinessInfo, ChatMessage, FaqEntry, SuggestedAnswer } from '../../shared/types';
-import { askClaude } from './claude';
 
 /** Normaliza texto: minúsculas, sin acentos, sin signos. */
 export function normalize(text: string): string {
@@ -57,7 +56,8 @@ export function matchFaq(text: string, faq: FaqEntry[]): FaqMatch | null {
         score += 1; // palabra contenida (ej. "agend" en "agendar")
       }
     }
-    if (score > 0 && (!best || score > best.score)) best = { entry, score };
+    // En empate gana la entrada más abajo en la lista: las específicas van después de las generales.
+    if (score > 0 && (!best || score >= best.score)) best = { entry, score };
   }
   return best;
 }
@@ -89,6 +89,7 @@ export async function suggestAnswer(msg: ChatMessage, opts: EngineOptions): Prom
   }
 
   if (opts.useAi && opts.anthropicApiKey && looksLikeQuestion(msg.text)) {
+    const { askClaude } = await import('./claude');
     const answer = await askClaude(msg.text, opts.faq, opts.business, opts.anthropicApiKey);
     if (answer) {
       return { messageId: msg.id, question: msg.text, answer, source: 'ia', confidence: 0.6 };

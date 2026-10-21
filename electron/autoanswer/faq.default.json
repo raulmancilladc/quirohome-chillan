@@ -120,7 +120,7 @@
       "cupo",
       "cupos"
     ],
-    "answer": "Puedes reservar en quirohome.cl/agenda-tu-cita o por WhatsApp: Santiago +56 9 7630 3081, Chillán +56 9 8630 2937. ¿En cuál sede te acomoda?",
+    "answer": "Te tomo hora al tiro por WhatsApp: Providencia +56 9 7630 3081 · Chillán +56 9 8630 2937. También en quirohome.cl/agenda-tu-cita.",
     "enabled": true
   },
   {
@@ -167,7 +167,7 @@
       "caro",
       "barato"
     ],
-    "answer": "La primera sesión de quiropraxia (evaluación completa + primer ajuste) tiene valor promocional de $33.000 en ambas sedes. Los controles son $33.000 y el masaje descontracturante $30.000. Para el resto, escríbenos por WhatsApp.",
+    "answer": "La sesión conmigo (Raúl Mancilla, en Providencia) es $40.000; con el resto del equipo, en ambas sedes, $33.000. Incluye evaluación y tratamiento en la misma hora. El masaje de 45 min es $30.000.",
     "enabled": true
   },
   {
@@ -210,7 +210,7 @@
       "cómo es la sesión",
       "nunca he ido"
     ],
-    "answer": "La primera sesión incluye una evaluación clínica completa (postura, movilidad, palpación) y el primer ajuste quiropráctico. Ahí te explicamos qué encontramos y te proponemos un plan.",
+    "answer": "La primera sesión dura unos 30 minutos e incluye evaluación y tratamiento en la misma hora. Llega 10 minutos antes: se firma el consentimiento y el pago se hace en el centro antes de entrar al box.",
     "enabled": true
   },
   {
@@ -235,53 +235,17 @@
       "piso pelvico",
       "piso pélvico",
       "fonasa",
-      "convenio"
+      "convenio",
+      "atienden fonasa",
+      "isapre",
+      "convenios"
     ],
     "answer": "Hacemos quiropraxia, kinesiología, masajes terapéuticos y masoterapia maxilofacial. En Chillán además osteopatía y rehabilitación de piso pélvico, con convenio Fonasa en kinesiología.",
     "enabled": true
   },
   {
-    "id": "diagnosticos",
-    "question": "¿Tratan hernias, lumbago, ciática, cervicalgia…?",
-    "keywords": [
-      "hernia",
-      "hernias",
-      "discal",
-      "lumbar",
-      "lumbago",
-      "lumbalgia",
-      "cervical",
-      "cervicalgia",
-      "ciatica",
-      "ciática",
-      "ciatico",
-      "ciático",
-      "escoliosis",
-      "dolor de espalda",
-      "columna",
-      "cuello",
-      "contractura",
-      "tunel carpiano",
-      "túnel carpiano",
-      "manguito",
-      "hombro",
-      "fascitis",
-      "tendinitis",
-      "tendinopatia",
-      "postura",
-      "sirve para",
-      "me sirve",
-      "atienden",
-      "trato",
-      "tengo dolor",
-      "me duele"
-    ],
-    "answer": "Sí, vemos muy seguido hernias discales, lumbago, ciática, cervicalgia, contracturas y sobrecarga postural. Cada caso parte con una evaluación para saber si es manejable con quiropraxia y kinesiología. Reserva en quirohome.cl/agenda-tu-cita.",
-    "enabled": true
-  },
-  {
     "id": "miedo",
-    "question": "¿Duele? Me da miedo que me truenen",
+    "question": "¿Duele? ¿Por qué suena ese clic?",
     "keywords": [
       "duele",
       "dolor al ajustar",
@@ -292,9 +256,17 @@
       "cruje",
       "peligroso",
       "seguro",
-      "riesgo"
+      "riesgo",
+      "clic",
+      "click",
+      "suena",
+      "sonido",
+      "ruido",
+      "truena",
+      "tronar",
+      "crack"
     ],
-    "answer": "Es súper común tener ese miedo. Todo parte con una evaluación conversada: te explicamos qué vamos a hacer y nada se hace sin que estés cómodo o cómoda.",
+    "answer": "Ese ruido no es hueso, es gas que se libera en la articulación al ganar movilidad. No duele, y que suene o no suene no mide si quedó bien hecho. Todo parte con una evaluación conversada.",
     "enabled": true
   },
   {
@@ -314,7 +286,7 @@
       "escribir",
       "escribirles"
     ],
-    "answer": "WhatsApp Santiago (Providencia): +56 9 7630 3081. WhatsApp Chillán: +56 9 8630 2937. También puedes reservar en quirohome.cl/agenda-tu-cita.",
+    "answer": "WhatsApp Providencia +56 9 7630 3081 · WhatsApp Chillán +56 9 8630 2937. Teléfono fijo Providencia: +56 2 2835 4040.",
     "enabled": true
   },
   {
@@ -340,26 +312,411 @@
   },
   {
     "id": "ninos-embarazo",
-    "question": "¿Atienden niños, embarazadas o adultos mayores?",
+    "question": "¿Atienden niños? ¿Desde qué edad?",
     "keywords": [
       "niños",
       "ninos",
       "niño",
+      "nino",
+      "hijo",
+      "hija",
       "bebe",
       "bebé",
+      "desde que edad",
+      "desde qué edad",
+      "menores",
+      "adolescente",
+      "años"
+    ],
+    "answer": "Atendemos desde los 14 años; los menores de edad vienen con un adulto responsable que firma el consentimiento. Para más chicos no hacemos la atención.",
+    "enabled": true
+  },
+  {
+    "id": "cuantas-sesiones",
+    "question": "¿Cuántas sesiones necesito?",
+    "keywords": [
+      "cuantas sesiones",
+      "cuántas sesiones",
+      "cuantas veces",
+      "cuántas veces",
+      "cuanto dura el tratamiento",
+      "cuánto dura el tratamiento",
+      "en cuanto tiempo",
+      "en cuánto tiempo",
+      "cuantas horas",
+      "cuántas horas"
+    ],
+    "answer": "Depende del caso y de cuánto lleves con la molestia. El plan sale de la evaluación, con metas claras: un cuadro reciente suele responder más rápido que uno de años.",
+    "enabled": true
+  },
+  {
+    "id": "examenes",
+    "question": "¿Tengo que llevar exámenes?",
+    "keywords": [
+      "examenes",
+      "exámenes",
+      "radiografia",
+      "radiografía",
+      "resonancia",
+      "scanner",
+      "escaner",
+      "imagenes",
+      "imágenes",
+      "llevar examen",
+      "rayos"
+    ],
+    "answer": "Si tienes radiografía o resonancia, tráela. Si no tienes, igual te podemos evaluar.",
+    "enabled": true
+  },
+  {
+    "id": "adolorido",
+    "question": "¿Es normal quedar adolorido después?",
+    "keywords": [
+      "adolorido",
+      "adolorida",
+      "despues de la sesion",
+      "después de la sesión",
+      "quede con dolor",
+      "quedé con dolor",
+      "me duele despues",
+      "me duele después",
+      "efectos",
+      "molestia despues",
+      "molestia después"
+    ],
+    "answer": "Puede pasar, como después de entrenar, y dura un día o dos. Si se mantiene o aparece algo raro, escríbenos y lo vemos.",
+    "enabled": true
+  },
+  {
+    "id": "quiro-vs-masaje",
+    "question": "¿Diferencia entre quiropraxia y masaje?",
+    "keywords": [
+      "diferencia",
+      "quiropraxia o masaje",
+      "masaje o quiropraxia",
+      "que es la quiropraxia",
+      "qué es la quiropraxia",
+      "que es quiropraxia",
+      "en que consiste",
+      "en qué consiste",
+      "kinesiologo o quiropractico",
+      "kinesiólogo o quiropráctico"
+    ],
+    "answer": "El masaje trabaja el músculo; la quiropraxia trabaja la articulación y la movilidad. Muchas veces se combinan, y eso se define en la evaluación.",
+    "enabled": true
+  },
+  {
+    "id": "giftcard",
+    "question": "¿Tienen gift card?",
+    "keywords": [
+      "gift card",
+      "giftcard",
+      "gift",
+      "regalo",
+      "regalar",
+      "tarjeta de regalo",
+      "para regalar"
+    ],
+    "answer": "Sí, tenemos gift card digital y se envía por WhatsApp. Solo necesitamos el nombre de quien regala y el nombre y WhatsApp de quien la recibe.",
+    "enabled": true
+  },
+  {
+    "id": "acompanante",
+    "question": "¿Puedo ir con acompañante?",
+    "keywords": [
+      "acompañante",
+      "acompanante",
+      "acompañado",
+      "acompanado",
+      "acompañada",
+      "con mi pareja",
+      "con alguien"
+    ],
+    "answer": "Sí, puedes venir acompañado o acompañada. Recuerda llegar 10 minutos antes: el pago se hace en el centro antes de entrar al box.",
+    "enabled": true
+  },
+  {
+    "id": "embarazo-condiciones",
+    "question": "¿Me pueden atender con hernia, osteoporosis, cirugía reciente o embarazo?",
+    "keywords": [
       "embarazada",
       "embarazo",
-      "adulto mayor",
-      "adultos mayores",
-      "abuela",
-      "abuelo",
-      "mi mama",
-      "mi mamá",
-      "mi papa",
-      "mi papá",
-      "tercera edad"
+      "osteoporosis",
+      "operada",
+      "operado",
+      "cirugia",
+      "cirugía",
+      "protesis",
+      "prótesis",
+      "me pueden atender",
+      "puedo atenderme"
     ],
-    "answer": "Sí, atendemos a personas de todas las edades. La evaluación inicial define qué técnica es la adecuada para cada caso. Escríbenos por WhatsApp y te orientamos.",
+    "answer": "Se puede, pero cambia la técnica, y eso se define en la evaluación, no por mensaje. Si hay fractura, esguince o accidente reciente, primero hay que pasar por el médico.",
+    "enabled": true
+  },
+  {
+    "id": "sintoma-cuello",
+    "question": "Me duele / tengo algo en: cuello",
+    "keywords": [
+      "cervical",
+      "cuello",
+      "nuca",
+      "torticolis",
+      "tortícolis",
+      "rectificacion",
+      "rectificación"
+    ],
+    "answer": "El cuello es de lo que más veo. Sin verte no te puedo decir qué es: prefiero evaluarte antes de opinar. Escríbeme y lo vemos: Providencia +56 9 7630 3081 · Chillán +56 9 8630 2937.",
+    "enabled": true
+  },
+  {
+    "id": "sintoma-cintura",
+    "question": "Me duele / tengo algo en: cintura",
+    "keywords": [
+      "ciatalgia",
+      "ciatica",
+      "ciática",
+      "cintura",
+      "espalda baja",
+      "lumbago",
+      "lumbar",
+      "lumbalgia",
+      "hernia",
+      "hernias",
+      "discal",
+      "protrusion",
+      "protrusión"
+    ],
+    "answer": "La cintura es la consulta número uno acá. Sin verte no te puedo decir qué es: prefiero evaluarte antes de opinar. Escríbeme y lo vemos: Providencia +56 9 7630 3081 · Chillán +56 9 8630 2937.",
+    "enabled": true
+  },
+  {
+    "id": "sintoma-espalda",
+    "question": "Me duele / tengo algo en: espalda",
+    "keywords": [
+      "dorsal",
+      "omoplato",
+      "omóplato",
+      "omoplatos",
+      "omóplatos",
+      "escoliosis",
+      "espalda",
+      "espalda cargada",
+      "contractura",
+      "contracturas"
+    ],
+    "answer": "La espalda cargada la veo todos los días. Sin verte no te puedo decir qué es: prefiero evaluarte antes de opinar. Escríbeme y lo vemos: Providencia +56 9 7630 3081 · Chillán +56 9 8630 2937.",
+    "enabled": true
+  },
+  {
+    "id": "sintoma-cadera",
+    "question": "Me duele / tengo algo en: cadera",
+    "keywords": [
+      "cadera",
+      "gluteo",
+      "glúteo",
+      "pelvis",
+      "sacroiliaca",
+      "sacroilíaca"
+    ],
+    "answer": "La cadera engaña, cuesta ubicarla. Sin verte no te puedo decir qué es: prefiero evaluarte antes de opinar. Escríbeme y lo vemos: Providencia +56 9 7630 3081 · Chillán +56 9 8630 2937.",
+    "enabled": true
+  },
+  {
+    "id": "sintoma-hombro",
+    "question": "Me duele / tengo algo en: hombro",
+    "keywords": [
+      "hombro",
+      "manguito",
+      "manguito rotador",
+      "tendinitis de hombro"
+    ],
+    "answer": "El hombro da para varias cosas distintas. Sin verte no te puedo decir qué es: prefiero evaluarte antes de opinar. Escríbeme y lo vemos: Providencia +56 9 7630 3081 · Chillán +56 9 8630 2937.",
+    "enabled": true
+  },
+  {
+    "id": "sintoma-rodilla",
+    "question": "Me duele / tengo algo en: rodilla",
+    "keywords": [
+      "rodilla",
+      "rodillas",
+      "menisco",
+      "meniscos"
+    ],
+    "answer": "La rodilla la veo seguido. Sin verte no te puedo decir qué es: prefiero evaluarte antes de opinar. Escríbeme y lo vemos: Providencia +56 9 7630 3081 · Chillán +56 9 8630 2937.",
+    "enabled": true
+  },
+  {
+    "id": "sintoma-pie",
+    "question": "Me duele / tengo algo en: pie",
+    "keywords": [
+      "empeine",
+      "fascitis",
+      "pie",
+      "pies",
+      "talon",
+      "talón",
+      "tobillo",
+      "espolon",
+      "espolón"
+    ],
+    "answer": "El pie y el tobillo aguantan todo el día, se quejan con razón. Sin verte no te puedo decir qué es: prefiero evaluarte antes de opinar. Escríbeme y lo vemos: Providencia +56 9 7630 3081 · Chillán +56 9 8630 2937.",
+    "enabled": true
+  },
+  {
+    "id": "sintoma-brazo",
+    "question": "Me duele / tengo algo en: brazo",
+    "keywords": [
+      "codo",
+      "mano",
+      "manos",
+      "muneca",
+      "muñeca",
+      "tendinitis",
+      "tunel carpiano",
+      "túnel carpiano",
+      "tunel del carpo",
+      "túnel del carpo",
+      "hormigueo"
+    ],
+    "answer": "Codo y muñeca los veo harto en gente que trabaja con las manos. Sin verte no te puedo decir qué es: prefiero evaluarte antes de opinar. Escríbeme y lo vemos: Providencia +56 9 7630 3081 · Chillán +56 9 8630 2937.",
+    "enabled": true
+  },
+  {
+    "id": "sintoma-cabeza",
+    "question": "Me duele / tengo algo en: cabeza",
+    "keywords": [
+      "dolor de cabeza",
+      "cefalea",
+      "cefaleas",
+      "migraña",
+      "migrana",
+      "jaqueca",
+      "mareo",
+      "mareos",
+      "vertigo",
+      "vértigo",
+      "tinitus",
+      "tínitus"
+    ],
+    "answer": "El dolor de cabeza de origen cervical lo veo harto. Sin verte no te puedo decir qué es: prefiero evaluarte antes de opinar. Escríbeme y lo vemos: Providencia +56 9 7630 3081 · Chillán +56 9 8630 2937.",
+    "enabled": true
+  },
+  {
+    "id": "sintoma-mandibula",
+    "question": "Me duele / tengo algo en: mandibula",
+    "keywords": [
+      "mandibula",
+      "mandíbula",
+      "atm",
+      "bruxismo",
+      "aprieto los dientes",
+      "rechino"
+    ],
+    "answer": "La mandíbula se trabaja junto con el cuello. Sin verte no te puedo decir qué es: prefiero evaluarte antes de opinar. Escríbeme y lo vemos: Providencia +56 9 7630 3081 · Chillán +56 9 8630 2937.",
+    "enabled": true
+  },
+  {
+    "id": "sintoma-nervio",
+    "question": "Me duele / tengo algo en: nervio",
+    "keywords": [
+      "nervio",
+      "nervio comprimido",
+      "nervio pinzado",
+      "pinzamiento",
+      "adormecimiento",
+      "se me duerme",
+      "fibromialgia",
+      "artrosis"
+    ],
+    "answer": "Lo que cuentas lo veo seguido. Sin verte no te puedo decir qué es: prefiero evaluarte antes de opinar. Escríbeme y lo vemos: Providencia +56 9 7630 3081 · Chillán +56 9 8630 2937.",
+    "enabled": true
+  },
+  {
+    "id": "cancelar",
+    "question": "¿Puedo cancelar o cambiar mi hora?",
+    "keywords": [
+      "cancelar",
+      "cancelo",
+      "anular",
+      "cambiar la hora",
+      "cambiar mi hora",
+      "reagendar",
+      "reprogramar",
+      "no puedo ir",
+      "llegar tarde",
+      "atrasado",
+      "atrasada"
+    ],
+    "answer": "Sí, avísanos por WhatsApp con un día de anticipación y te reagendamos sin problema. Si llegas tarde se acorta la sesión para no atrasar a los demás pacientes.",
+    "enabled": true
+  },
+  {
+    "id": "garantia",
+    "question": "¿Garantizan resultados?",
+    "keywords": [
+      "garantia",
+      "garantía",
+      "garantizan",
+      "funciona de verdad",
+      "de verdad sirve",
+      "resultados",
+      "me va a servir",
+      "van a curar",
+      "se cura",
+      "me voy a mejorar"
+    ],
+    "answer": "No te voy a prometer eso porque cada cuerpo responde distinto y sería deshonesto. Lo que sí: partimos evaluándote para ser claros con tu caso, y si no es lo tuyo, te lo decimos.",
+    "enabled": true
+  },
+  {
+    "id": "urgencia",
+    "question": "Accidente, fractura o pérdida de fuerza: urgencia",
+    "keywords": [
+      "accidente",
+      "choque",
+      "me cai",
+      "me caí",
+      "caida",
+      "caída",
+      "fractura",
+      "fracturado",
+      "quebrado",
+      "esguince",
+      "no siento las piernas",
+      "no puedo caminar",
+      "perdi fuerza",
+      "perdí fuerza",
+      "incontinencia",
+      "fiebre"
+    ],
+    "answer": "Eso no se ve en un live ni en consulta quiropráctica primero: con accidente reciente, fractura, pérdida de fuerza o de control de esfínteres hay que ir a urgencias o al médico ahora. Después de eso, conversamos.",
+    "enabled": true
+  },
+  {
+    "id": "correo",
+    "question": "¿Cuál es el correo?",
+    "keywords": [
+      "correo",
+      "email",
+      "mail",
+      "e-mail"
+    ],
+    "answer": "Providencia: centro.quirohome@gmail.com · Chillán: quirohomechillan@gmail.com. Para agendar es más rápido el WhatsApp.",
+    "enabled": true
+  },
+  {
+    "id": "cuerpo-completo",
+    "question": "¿Hacen masaje de cuerpo completo?",
+    "keywords": [
+      "cuerpo completo",
+      "masaje completo",
+      "relajacion",
+      "relajación",
+      "descontracturante",
+      "masaje de espalda"
+    ],
+    "answer": "Sí: el masaje descontracturante o de relajación es de 45 minutos y cuesta $30.000 en las dos sedes. El de tren superior o inferior es de 25 minutos ($25.000 Providencia, $22.000 Chillán).",
     "enabled": true
   }
 ]
