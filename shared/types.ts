@@ -109,6 +109,8 @@ export interface PlatformChatConfig {
 }
 
 export interface AppSettings {
+  /** Versión de los datos por defecto cargados (negocio y FAQ). */
+  defaultsVersion?: number;
   orientation: Orientation;
   fps: number;
   videoBitrateKbps: number;

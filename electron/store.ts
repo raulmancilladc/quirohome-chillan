@@ -6,7 +6,11 @@ import defaultFaq from './autoanswer/faq.default.json';
 
 const FILE = () => path.join(app.getPath('userData'), 'settings.json');
 
+/** Sube este número cuando cambien los datos por defecto del negocio o las FAQ. */
+const DEFAULTS_VERSION = 2;
+
 export const defaultSettings = (): AppSettings => ({
+  defaultsVersion: DEFAULTS_VERSION,
   orientation: 'vertical',
   fps: 30,
   videoBitrateKbps: 3500,
@@ -33,15 +37,18 @@ export const defaultSettings = (): AppSettings => ({
     overlaySeconds: 12,
   },
   business: {
-    name: 'QuiroHome Chillán',
-    address: '',
-    howToGet: '',
-    website: '',
-    bookingUrl: '',
-    phone: '',
-    hours: '',
-    services: '',
-    extra: '',
+    name: 'QuiroHome',
+    address: 'Santiago: Pérez Valenzuela 1276, Providencia. Chillán: El Roble 224',
+    howToGet:
+      'Providencia: a una cuadra del metro Manuel Montt (línea 1); sin estacionamiento propio, hay parquímetros en Manuel Montt y el SABA de Av. Providencia. Chillán: El Roble 224, a pasos de Av. O\'Higgins, con estacionamiento en el lugar',
+    website: 'quirohome.cl',
+    bookingUrl: 'quirohome.cl/agenda-tu-cita',
+    phone: 'Santiago +56 9 7630 3081 · Chillán +56 9 8630 2937',
+    hours: 'Lunes a viernes 8:20 a 19:30 (Chillán desde 8:55), sábados 8:20 a 14:10. Domingos cerrado',
+    services:
+      'Quiropraxia (ingreso con evaluación completa $33.000 promocional, control $33.000, sesión con Raúl Mancilla en Providencia $40.000), kinesiología (Chillán, $20.000, plan de 10 por $180.000, convenio Fonasa), masaje descontracturante 45 min $30.000, masaje tren superior/inferior 25 min, masoterapia maxilofacial para bruxismo, osteopatía (Chillán $30.000), rehabilitación de piso pélvico (Chillán $30.000). Tratamos hernias discales, lumbago, ciática, cervicalgia, contracturas, túnel carpiano, manguito rotador, fascitis plantar, tendinopatías y sobrecarga postural',
+    extra:
+      'Raúl Mancilla es quiropráctico, kinesiólogo y entrenador deportivo, fundador de QuiroHome; atiende en Providencia. Equipo de quiroprácticos y kinesiólogos universitarios y titulados; nunca usar los títulos "Doctor", "Dr." ni "DC". No prometer curas ni resultados; todo parte con una evaluación. Instagram: @quirohome (Santiago), @quirohomechillan (Chillán), @raulmancilladc',
   },
   faq: defaultFaq as AppSettings['faq'],
 });
@@ -51,14 +58,18 @@ export function loadSettings(): AppSettings {
     const raw = fs.readFileSync(FILE(), 'utf8');
     const saved = JSON.parse(raw) as Partial<AppSettings>;
     const base = defaultSettings();
+    // Si la app traía datos antiguos por defecto y el usuario no alcanzó a editarlos,
+    // cargamos los nuevos datos del negocio y las nuevas preguntas frecuentes.
+    const stale = (saved.defaultsVersion ?? 0) < DEFAULTS_VERSION;
     return {
       ...base,
       ...saved,
       chat: { ...base.chat, ...(saved.chat ?? {}) },
       autoAnswer: { ...base.autoAnswer, ...(saved.autoAnswer ?? {}) },
-      business: { ...base.business, ...(saved.business ?? {}) },
+      defaultsVersion: DEFAULTS_VERSION,
+      business: stale ? base.business : { ...base.business, ...(saved.business ?? {}) },
       targets: saved.targets?.length ? saved.targets : base.targets,
-      faq: saved.faq?.length ? saved.faq : base.faq,
+      faq: stale || !saved.faq?.length ? base.faq : saved.faq,
     };
   } catch {
     return defaultSettings();
