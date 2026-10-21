@@ -49,12 +49,24 @@ jobs:
     name: Publicar versión
     needs: [mac, windows]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+      - name: Nombre de la versión
+        id: ver
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT";
+          else echo "tag=build-${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"; fi
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: QuiroHome Live ${{ steps.ver.outputs.tag }}
           files: artifacts/**/*
-          generate_release_notes: true
+          body: |
+            Instaladores de QuiroHome Live.
+            - macOS Apple Silicon (M1/M2/M3/M4): archivo `-mac-arm64.dmg`
+            - macOS Intel: archivo `-mac-x64.dmg`
+            - Windows: archivo `.exe`
+
+            Primera apertura en macOS: clic derecho sobre la app → Abrir → Abrir (la app no está firmada por Apple).
