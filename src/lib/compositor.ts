@@ -39,6 +39,12 @@ export class Compositor {
   brandLabel = '';
   mirror = false;
   showComments = true;
+  /** 'cover' llena la pantalla recortando; 'contain' muestra la cámara completa con fondo difuminado. */
+  fit: 'cover' | 'contain' = 'cover';
+  /** Zoom adicional sobre la cámara principal (1 = sin zoom). */
+  zoom = 1;
+  /** Rotación de la cámara principal en grados (0, 90, 180, 270). */
+  rotation = 0;
   private comments: OverlayComment[] = [];
 
   addComment(c: OverlayComment) {
@@ -99,20 +105,23 @@ export class Compositor {
     ctx.fillRect(0, 0, W, H);
 
     if (video && video.videoWidth > 0) {
-      const vw = video.videoWidth;
-      const vh = video.videoHeight;
-      const scale = Math.max(W / vw, H / vh);
-      const dw = vw * scale;
-      const dh = vh * scale;
-      const dx = (W - dw) / 2;
-      const dy = (H - dh) / 2;
-      ctx.save();
-      if (this.mirror) {
-        ctx.translate(W, 0);
-        ctx.scale(-1, 1);
+      const rotated = this.rotation % 180 !== 0;
+      const vw = rotated ? video.videoHeight : video.videoWidth;
+      const vh = rotated ? video.videoWidth : video.videoHeight;
+      const cover = Math.max(W / vw, H / vh);
+      const contain = Math.min(W / vw, H / vh);
+
+      if (this.fit === 'contain' && contain < cover) {
+        // Fondo: la misma imagen ampliada y difuminada, para no dejar franjas negras.
+        ctx.save();
+        ctx.filter = `blur(${Math.round(W * 0.03)}px)`;
+        this.drawCamera(video, cover * 1.1, rotated);
+        ctx.restore();
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fillRect(0, 0, W, H);
       }
-      ctx.drawImage(video, dx, dy, dw, dh);
-      ctx.restore();
+      const scale = (this.fit === 'contain' ? contain : cover) * this.zoom;
+      this.drawCamera(video, scale, rotated);
     } else {
       ctx.fillStyle = '#9aa0a6';
       ctx.font = `${Math.round(W * 0.035)}px sans-serif`;
@@ -210,6 +219,24 @@ export class Compositor {
       }
       ctx.globalAlpha = 1;
     }
+  }
+
+  /** Dibuja la cámara centrada con escala, espejo y rotación. */
+  private drawCamera(video: HTMLVideoElement, scale: number, rotated: boolean) {
+    const { ctx, canvas } = this;
+    const W = canvas.width;
+    const H = canvas.height;
+    const sw = video.videoWidth;
+    const sh = video.videoHeight;
+    const dw = (rotated ? sh : sw) * scale;
+    const dh = (rotated ? sw : sh) * scale;
+    ctx.save();
+    ctx.translate(W / 2, H / 2);
+    if (this.mirror) ctx.scale(-1, 1);
+    ctx.rotate((this.rotation * Math.PI) / 180);
+    if (rotated) ctx.drawImage(video, -dh / 2, -dw / 2, dh, dw);
+    else ctx.drawImage(video, -dw / 2, -dh / 2, dw, dh);
+    ctx.restore();
   }
 
   /** Dibuja la respuesta y devuelve la coordenada superior de la caja. */

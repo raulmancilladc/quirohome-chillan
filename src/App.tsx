@@ -28,6 +28,17 @@ export default function App() {
   const [audio, setAudio] = useState<AudioReport>({ level: 0, feedback: false, clipping: false });
   const [echoDismissed, setEchoDismissed] = useState(0);
   const [macMuted, setMacMuted] = useState(false);
+  const [fit, setFit] = useState<'cover' | 'contain'>('cover');
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+
+  useEffect(() => {
+    const c = compositor.current;
+    if (!c) return;
+    c.fit = fit;
+    c.zoom = zoom;
+    c.rotation = rotation;
+  }, [fit, zoom, rotation]);
 
   const compositor = useRef<Compositor | null>(null);
   const recorder = useRef<StreamRecorder | null>(null);
@@ -344,6 +355,17 @@ export default function App() {
                 onMute={() => setMicMuted((m) => !m)}
                 onSwap={() => compositor.current?.swap()}
               />
+              <div className="source">
+                <label>Encuadre</label>
+                <div className="row">
+                  <div className="segment">
+                    <button className={fit === 'cover' ? 'active' : ''} onClick={() => setFit('cover')} title="Llena la pantalla recortando los lados">Llenar</button>
+                    <button className={fit === 'contain' ? 'active' : ''} onClick={() => setFit('contain')} title="Muestra la cámara completa con fondo difuminado">Completo</button>
+                  </div>
+                  <input type="range" min={1} max={2.5} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} style={{ width: 110 }} title={`Zoom ${zoom.toFixed(2)}x`} />
+                  <button className="small" title="Rotar la cámara 90° (si la Osmo está montada de lado)" onClick={() => setRotation((r) => (r + 90) % 360)}>⟳ {rotation}°</button>
+                </div>
+              </div>
               <button
                 className="small"
                 title="Abre una ventana solo con el video, para capturarla desde TikTok LIVE Studio u otro programa"
