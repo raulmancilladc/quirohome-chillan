@@ -40,7 +40,7 @@ export class Compositor {
   mirror = false;
   showComments = true;
   /** 'cover' llena la pantalla recortando; 'contain' muestra la cámara completa con fondo difuminado. */
-  fit: 'cover' | 'contain' = 'cover';
+  fit: 'cover' | 'contain' = 'contain';
   /** Zoom adicional sobre la cámara principal (1 = sin zoom). */
   zoom = 1;
   /** Rotación de la cámara principal en grados (0, 90, 180, 270). */

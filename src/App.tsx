@@ -28,7 +28,7 @@ export default function App() {
   const [audio, setAudio] = useState<AudioReport>({ level: 0, feedback: false, clipping: false });
   const [echoDismissed, setEchoDismissed] = useState(0);
   const [macMuted, setMacMuted] = useState(false);
-  const [fit, setFit] = useState<'cover' | 'contain'>('cover');
+  const [fit, setFit] = useState<'cover' | 'contain'>('contain');
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
 
