@@ -1,4 +1,4 @@
-import type { BusinessInfo, ChatMessage, FaqEntry, SuggestedAnswer } from '../../shared/types';
+import type { AnsweredRecord, BusinessInfo, ChatMessage, FaqEntry, SuggestedAnswer } from '../../shared/types';
 
 /** Normaliza texto: minúsculas, sin acentos, sin signos. */
 export function normalize(text: string): string {
@@ -67,6 +67,63 @@ export interface EngineOptions {
   business: BusinessInfo;
   useAi: boolean;
   anthropicApiKey: string;
+  /** Responder también saludos, agradecimientos y comentarios sin pregunta. */
+  answerEverything?: boolean;
+  /** Respuestas anteriores aprobadas por el streamer (para aprender el estilo). */
+  history?: AnsweredRecord[];
+}
+
+type SocialKind = 'saludo' | 'gracias' | 'testimonio' | 'despedida';
+
+const SOCIAL: Record<SocialKind, { keywords: string[]; replies: string[] }> = {
+  saludo: {
+    keywords: ['hola', 'holaa', 'holaaa', 'buenas', 'buenos dias', 'buenas tardes', 'buenas noches', 'saludos', 'presente', 'aqui estoy', 'llegue', 'llegué', 'que tal', 'qué tal'],
+    replies: ['¡Hola! Bienvenido/a 🙌 ¿De dónde nos ves?', '¡Hola! Qué bueno que llegaste 🙌', '¡Buenas! Cuéntame desde dónde nos escribes 👋', '¡Hola! Pregunta lo que quieras, acá estoy 🙌'],
+  },
+  gracias: {
+    keywords: ['gracias', 'muchas gracias', 'se agradece', 'mil gracias', 'graciasss', 'grax'],
+    replies: ['¡A ti por estar! 🙌', '¡De nada! Cualquier duda, pregunta 👍', '¡Gracias a ti por acompañarme! 🤍'],
+  },
+  testimonio: {
+    keywords: ['me sirvio', 'me sirvió', 'me ayudo', 'me ayudó', 'quede bien', 'quedé bien', 'excelente', 'lo recomiendo', 'los recomiendo', 'me atendi', 'me atendí', 'fui y', 'muy bueno', 'buenisimo', 'buenísimo', 'lo mejor', 'crack', 'genio', 'maestro', 'el mejor', 'la mejor'],
+    replies: ['¡Gracias por contarlo! 🙌 Nos alegra un montón 😊', 'Qué bueno leer esto 🙌 Gracias por la confianza ❤️', '¡Muchas gracias! 😊 Se agradece que lo compartas 🙌', 'Gracias por la recomendación 🙌 Un abrazo grande ❤️'],
+  },
+  despedida: {
+    keywords: ['chao', 'chau', 'adios', 'adiós', 'me voy', 'nos vemos', 'hasta luego', 'bye'],
+    replies: ['¡Nos vemos! Gracias por acompañarme 🙌', '¡Chao! Cuídate 🤍', '¡Hasta la próxima! 👋'],
+  },
+};
+
+/** Detecta saludos, agradecimientos, testimonios y despedidas. */
+export function matchSocial(text: string): { kind: SocialKind; reply: string } | null {
+  const n = normalize(text);
+  if (!n || n.split(' ').length > 25) return null;
+  const padded = ` ${n} `;
+  const order: SocialKind[] = ['testimonio', 'gracias', 'despedida', 'saludo'];
+  for (const kind of order) {
+    if (SOCIAL[kind].keywords.some((k) => padded.includes(` ${normalize(k)} `))) {
+      const replies = SOCIAL[kind].replies;
+      return { kind, reply: replies[Math.floor(Math.random() * replies.length)] };
+    }
+  }
+  return null;
+}
+
+const STOPWORDS = new Set('a al algo alguien ante aqui aquí asi así aun aún bien buenas buenos cada casi como cómo con contra cual cuál cuando cuándo cuanto cuánto de del desde donde dónde dos el ella ellas ellos en entre era eres es esa esas ese eso esos esta está estan están este esto estos fue ha hace hacen hacer hasta hay hola la las le les lo los mas más me mi mis muy nada ni no nos o os otra otro para pero poco por porque que qué quien quién se sea ser si sí sin sobre solo sólo son soy su sus tal tambien también tan te tengo tener ti tiene tienen todo tu tus un una uno unos ustedes va ya yo'.split(' '));
+
+/** Saca palabras clave de una pregunta para crear una nueva respuesta frecuente. */
+export function keywordsFromQuestion(question: string): string[] {
+  const n = normalize(question);
+  const words = n.split(' ').filter((w) => w.length >= 4 && !STOPWORDS.has(w));
+  const unique = [...new Set(words)];
+  const phrases: string[] = [];
+  const all = n.split(' ');
+  for (let i = 0; i < all.length - 1; i++) {
+    const a = all[i];
+    const b = all[i + 1];
+    if (!STOPWORDS.has(a) && !STOPWORDS.has(b)) phrases.push(`${a} ${b}`);
+  }
+  return [...phrases.slice(0, 3), ...unique.slice(0, 6)];
 }
 
 /**
@@ -88,9 +145,19 @@ export async function suggestAnswer(msg: ChatMessage, opts: EngineOptions): Prom
     };
   }
 
-  if (opts.useAi && opts.anthropicApiKey && looksLikeQuestion(msg.text)) {
+  const isQuestion = looksLikeQuestion(msg.text);
+
+  // Saludos, gracias, testimonios: respuesta corta sin usar la IA.
+  if (opts.answerEverything && !isQuestion) {
+    const social = matchSocial(msg.text);
+    if (social) {
+      return { messageId: msg.id, question: msg.text, answer: social.reply, source: 'faq', confidence: 0.5, faqId: `social-${social.kind}` };
+    }
+  }
+
+  if (opts.useAi && opts.anthropicApiKey && (isQuestion || opts.answerEverything)) {
     const { askClaude } = await import('./claude');
-    const answer = await askClaude(msg.text, opts.faq, opts.business, opts.anthropicApiKey);
+    const answer = await askClaude(msg.text, opts.faq, opts.business, opts.anthropicApiKey, opts.history ?? [], Boolean(opts.answerEverything));
     if (answer) {
       return { messageId: msg.id, question: msg.text, answer, source: 'ia', confidence: 0.6 };
     }

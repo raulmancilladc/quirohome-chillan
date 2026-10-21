@@ -7,7 +7,7 @@ import defaultFaq from './autoanswer/faq.default.json';
 const FILE = () => path.join(app.getPath('userData'), 'settings.json');
 
 /** Sube este número cuando cambien los datos por defecto del negocio o las FAQ. */
-const DEFAULTS_VERSION = 2;
+const DEFAULTS_VERSION = 3;
 
 export const defaultSettings = (): AppSettings => ({
   defaultsVersion: DEFAULTS_VERSION,
@@ -16,6 +16,10 @@ export const defaultSettings = (): AppSettings => ({
   videoBitrateKbps: 3500,
   audioBitrateKbps: 128,
   recordLocally: true,
+  recordingQuality: 'high',
+  showCommentsOnVideo: true,
+  blockedUsers: [],
+  answeredHistory: [],
   targets: [
     { id: 'youtube', platform: 'youtube', name: 'YouTube', url: 'rtmp://a.rtmp.youtube.com/live2', key: '', enabled: false },
     { id: 'facebook', platform: 'facebook', name: 'Facebook', url: 'rtmps://live-api-s.facebook.com:443/rtmp', key: '', enabled: false },
@@ -35,6 +39,8 @@ export const defaultSettings = (): AppSettings => ({
     useAi: false,
     anthropicApiKey: '',
     overlaySeconds: 12,
+    answerEverything: true,
+    learnFromAnswers: true,
   },
   business: {
     name: 'QuiroHome',
@@ -69,6 +75,8 @@ export function loadSettings(): AppSettings {
       defaultsVersion: DEFAULTS_VERSION,
       business: stale ? base.business : { ...base.business, ...(saved.business ?? {}) },
       targets: saved.targets?.length ? saved.targets : base.targets,
+      blockedUsers: saved.blockedUsers ?? [],
+      answeredHistory: saved.answeredHistory ?? [],
       faq: stale || !saved.faq?.length ? base.faq : saved.faq,
     };
   } catch {

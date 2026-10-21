@@ -1,10 +1,11 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import path from 'node:path';
-import type { AppSettings, ChatMessage, StreamStartOptions, SuggestedAnswer } from '../shared/types';
+import type { AppSettings, BlockedUser, ChatMessage, FaqEntry, StreamStartOptions, SuggestedAnswer } from '../shared/types';
 import { loadSettings, saveSettings } from './store';
 import { StreamEngine, resolveFfmpegPath } from './streaming/ffmpeg';
 import { ChatAggregator } from './chat/aggregator';
-import { suggestAnswer } from './autoanswer/engine';
+import { suggestAnswer, keywordsFromQuestion, normalize } from './autoanswer/engine';
+import { CommentLog } from './streaming/commentlog';
 import { youtubeLogin, YouTubeApi } from './chat/youtube';
 import { facebookCreateLive } from './chat/facebook';
 
@@ -12,6 +13,7 @@ let win: BrowserWindow | null = null;
 let settings: AppSettings = loadSettings();
 const engine = new StreamEngine(resolveFfmpegPath(), path.join(app.getPath('videos'), 'QuiroHome Live'));
 const chat = new ChatAggregator();
+const commentLog = new CommentLog();
 let facebookLiveId: string | undefined;
 
 function send(channel: string, payload: unknown) {
@@ -41,7 +43,15 @@ function createWindow() {
 }
 
 // ---- Transmisión -----------------------------------------------------------
-engine.on('status', (s) => send('stream:status', s));
+engine.on('status', (s) => {
+  send('stream:status', s);
+  if (s.state === 'live' && s.recordingPath && s.startedAt && !commentLog.active) {
+    commentLog.start(s.recordingPath, s.startedAt);
+  }
+  if ((s.state === 'idle' || s.state === 'error') && commentLog.active) {
+    commentLog.stop();
+  }
+});
 engine.on('log', (line: string) => send('stream:log', line));
 
 ipcMain.handle('stream:start', (_e, opts: StreamStartOptions) => {
@@ -67,15 +77,57 @@ ipcMain.handle('settings:set', (_e, next: AppSettings) => {
 });
 
 // ---- Chat ------------------------------------------------------------------
-chat.on('message', async (m: ChatMessage) => {
-  send('chat:message', m);
-  if (settings.autoAnswer.mode === 'off') return;
-  const suggestion = await suggestAnswer(m, {
+function engineOptions() {
+  return {
     faq: settings.faq,
     business: settings.business,
     useAi: settings.autoAnswer.useAi,
     anthropicApiKey: settings.autoAnswer.anthropicApiKey,
-  });
+    answerEverything: settings.autoAnswer.answerEverything,
+    history: settings.answeredHistory,
+  };
+}
+
+function isBlocked(m: ChatMessage): boolean {
+  const a = normalize(m.author);
+  return settings.blockedUsers.some((b) => b.platform === m.platform && normalize(b.author) === a);
+}
+
+/** Guarda la respuesta como aprendizaje: historial + nueva pregunta frecuente si fue editada o manual. */
+function learn(message: ChatMessage, suggestion: SuggestedAnswer) {
+  settings.answeredHistory = [...settings.answeredHistory, {
+    question: message.text, answer: suggestion.answer, platform: message.platform, source: suggestion.source, timestamp: Date.now(),
+  }].slice(-300);
+
+  if (settings.autoAnswer.learnFromAnswers) {
+    const original = suggestion.faqId ? settings.faq.find((f) => f.id === suggestion.faqId) : undefined;
+    const isSocial = suggestion.faqId?.startsWith('social-');
+    const unchanged = original && normalize(original.answer) === normalize(suggestion.answer);
+    if (!isSocial && !unchanged && suggestion.answer.trim()) {
+      const keywords = keywordsFromQuestion(message.text);
+      if (keywords.length > 0) {
+        const entry: FaqEntry = {
+          id: `aprendida-${Date.now()}`,
+          question: message.text.slice(0, 120),
+          keywords,
+          answer: suggestion.answer,
+          enabled: true,
+        };
+        settings.faq = [...settings.faq, entry];
+        send('faq:learned', entry);
+      }
+    }
+  }
+  saveSettings(settings);
+  send('settings:changed', settings);
+}
+
+chat.on('message', async (m: ChatMessage) => {
+  if (isBlocked(m)) return;
+  send('chat:message', m);
+  commentLog.add(m);
+  if (settings.autoAnswer.mode === 'off') return;
+  const suggestion = await suggestAnswer(m, engineOptions());
   if (!suggestion) return;
   if (settings.autoAnswer.mode === 'auto') {
     await publishAnswer(m, suggestion);
@@ -95,6 +147,8 @@ async function publishAnswer(message: ChatMessage, suggestion: SuggestedAnswer) 
     }
   }
   send('chat:answered', { message, suggestion, posted, overlay: settings.autoAnswer.showOverlay });
+  commentLog.add(message, suggestion.answer);
+  learn(message, suggestion);
 }
 
 ipcMain.handle('chat:connect', async () => {
@@ -116,14 +170,25 @@ ipcMain.handle('chat:manualQuestion', async (_e, payload: { platform: ChatMessag
     timestamp: Date.now(),
   };
   send('chat:message', m);
-  const suggestion = await suggestAnswer(m, {
-    faq: settings.faq,
-    business: settings.business,
-    useAi: settings.autoAnswer.useAi,
-    anthropicApiKey: settings.autoAnswer.anthropicApiKey,
-  });
+  commentLog.add(m);
+  const suggestion = await suggestAnswer(m, engineOptions());
   if (suggestion) send('chat:suggestion', suggestion);
   return suggestion;
+});
+ipcMain.handle('chat:block', (_e, user: { platform: ChatMessage['platform']; author: string }) => {
+  const entry: BlockedUser = { platform: user.platform, author: user.author, blockedAt: Date.now() };
+  if (!settings.blockedUsers.some((b) => b.platform === entry.platform && normalize(b.author) === normalize(entry.author))) {
+    settings.blockedUsers = [...settings.blockedUsers, entry];
+    saveSettings(settings);
+  }
+  send('settings:changed', settings);
+  return settings.blockedUsers;
+});
+ipcMain.handle('chat:unblock', (_e, user: { platform: ChatMessage['platform']; author: string }) => {
+  settings.blockedUsers = settings.blockedUsers.filter((b) => !(b.platform === user.platform && normalize(b.author) === normalize(user.author)));
+  saveSettings(settings);
+  send('settings:changed', settings);
+  return settings.blockedUsers;
 });
 ipcMain.handle('chat:canReply', (_e, platform: ChatMessage['platform']) => chat.canReply(platform));
 

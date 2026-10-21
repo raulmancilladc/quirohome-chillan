@@ -17,6 +17,7 @@ export interface StreamTarget {
 
 export interface StreamStartOptions {
   targets: StreamTarget[];
+  recordingQuality: RecordingQuality;
   orientation: Orientation;
   width: number;
   height: number;
@@ -108,6 +109,23 @@ export interface PlatformChatConfig {
   };
 }
 
+export interface BlockedUser {
+  platform: Platform;
+  author: string;
+  blockedAt: number;
+}
+
+/** Respuesta aprobada o escrita por el streamer; sirve para aprender. */
+export interface AnsweredRecord {
+  question: string;
+  answer: string;
+  platform: Platform;
+  source: AnswerSource;
+  timestamp: number;
+}
+
+export type RecordingQuality = 'stream' | 'high';
+
 export interface AppSettings {
   /** Versión de los datos por defecto cargados (negocio y FAQ). */
   defaultsVersion?: number;
@@ -116,6 +134,13 @@ export interface AppSettings {
   videoBitrateKbps: number;
   audioBitrateKbps: number;
   recordLocally: boolean;
+  /** 'high' graba un archivo aparte en alta calidad (ideal para sacar reels). */
+  recordingQuality: RecordingQuality;
+  /** Mostrar los comentarios del público sobre el video (quedan en la grabación). */
+  showCommentsOnVideo: boolean;
+  blockedUsers: BlockedUser[];
+  /** Historial de respuestas dadas (las últimas), para aprender. */
+  answeredHistory: AnsweredRecord[];
   targets: StreamTarget[];
   chat: PlatformChatConfig;
   autoAnswer: {
@@ -127,6 +152,10 @@ export interface AppSettings {
     useAi: boolean;
     anthropicApiKey: string;
     overlaySeconds: number;
+    /** Responder también saludos, agradecimientos y comentarios que no son preguntas. */
+    answerEverything: boolean;
+    /** Guardar como pregunta frecuente cada respuesta editada o escrita a mano. */
+    learnFromAnswers: boolean;
   };
   business: BusinessInfo;
   faq: FaqEntry[];

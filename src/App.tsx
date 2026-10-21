@@ -41,6 +41,7 @@ export default function App() {
       compositor.current = c;
       c.start();
     });
+    const offChanged = window.quirolive.settings.onChanged((s) => setSettings(s));
     const off = window.quirolive.stream.onStatus((s) => {
       setStatus(s);
       if (s.state === 'error' && s.message) showToast(s.message);
@@ -51,9 +52,14 @@ export default function App() {
     });
     return () => {
       off();
+      offChanged();
       compositor.current?.stop();
     };
   }, [showToast]);
+
+  useEffect(() => {
+    if (compositor.current && settings) compositor.current.showComments = settings.showCommentsOnVideo;
+  }, [settings]);
 
   // Enumerar cámaras y micrófonos.
   useEffect(() => {
@@ -69,7 +75,7 @@ export default function App() {
       mediaStream.current?.getTracks().forEach((t) => t.stop());
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: camId ? { exact: camId } : undefined, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+          video: { deviceId: camId ? { exact: camId } : undefined, width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 30 } },
           audio: { deviceId: micId ? { exact: micId } : undefined, echoCancellation: true, noiseSuppression: true },
         });
         if (cancelled) return;
@@ -121,6 +127,7 @@ export default function App() {
         videoBitrateKbps: settings.videoBitrateKbps,
         audioBitrateKbps: settings.audioBitrateKbps,
         recordLocally: settings.recordLocally,
+        recordingQuality: settings.recordingQuality,
       });
       const rec = new StreamRecorder();
       rec.start(compositor.current.canvas, mediaStream.current?.getAudioTracks()[0] ?? null, settings.fps, settings.videoBitrateKbps);
@@ -137,6 +144,10 @@ export default function App() {
     await window.quirolive.stream.stop();
     await window.quirolive.chat.disconnect();
   };
+
+  const showComment = useCallback((m: ChatMessage) => {
+    compositor.current?.addComment({ author: m.author, text: m.text, platform: m.platform, at: Date.now() });
+  }, []);
 
   const showOverlay = useCallback(
     (question: string, answer: string) => {
@@ -223,7 +234,7 @@ export default function App() {
               {activeTargets.length === 0 && <span className="muted small-text">Activa una plataforma en la pestaña “Plataformas”.</span>}
             </div>
           </div>
-          <ChatPanel settings={settings} onOverlay={showOverlay} onToast={showToast} />
+          <ChatPanel settings={settings} onOverlay={showOverlay} onComment={showComment} onToast={showToast} />
         </div>
       )}
 

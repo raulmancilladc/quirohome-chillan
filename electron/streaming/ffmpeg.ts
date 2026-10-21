@@ -39,46 +39,66 @@ export class StreamEngine extends EventEmitter {
     }
 
     let recordingPath: string | null = null;
+    let highQualityArgs: string[] = [];
     if (opts.recordLocally) {
       fs.mkdirSync(this.recordingsDir, { recursive: true });
       const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      recordingPath = path.join(this.recordingsDir, `live-${stamp}-${opts.orientation}.mkv`);
-      outputs.push(`[f=matroska]${escapeTee(recordingPath)}`);
+      if (opts.recordingQuality === 'high') {
+        // Segunda codificación independiente, en alta calidad, para editar reels.
+        // MP4 fragmentado: si la app se cierra de golpe, el archivo igual se puede abrir.
+        recordingPath = path.join(this.recordingsDir, `live-${stamp}-${opts.orientation}-HQ.mp4`);
+        highQualityArgs = [
+          '-map', '0:v:0', '-map', '0:a:0?',
+          '-c:v', 'libx264', '-preset', 'fast', '-crf', '17', '-pix_fmt', 'yuv420p',
+          '-r', String(opts.fps), '-g', String(opts.fps * 2),
+          '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2',
+          '-movflags', '+frag_keyframe+empty_moov+default_base_moof',
+          '-f', 'mp4', recordingPath,
+        ];
+      } else {
+        recordingPath = path.join(this.recordingsDir, `live-${stamp}-${opts.orientation}.mkv`);
+        outputs.push(`[f=matroska]${escapeTee(recordingPath)}`);
+      }
     }
 
-    if (outputs.length === 0) {
+    if (outputs.length === 0 && highQualityArgs.length === 0) {
       throw new Error('No hay destinos activos con clave de transmisión ni grabación local.');
     }
 
     const gop = opts.fps * 2;
     const vb = `${opts.videoBitrateKbps}k`;
-    const args = [
-      '-hide_banner',
-      '-loglevel', 'warning',
-      '-fflags', '+genpts',
-      '-i', 'pipe:0',
-      '-map', '0:v:0',
-      '-map', '0:a:0?',
-      '-c:v', 'libx264',
-      '-preset', 'veryfast',
-      '-tune', 'zerolatency',
-      '-profile:v', 'main',
-      '-pix_fmt', 'yuv420p',
-      '-r', String(opts.fps),
-      '-g', String(gop),
-      '-keyint_min', String(gop),
-      '-sc_threshold', '0',
-      '-b:v', vb,
-      '-maxrate', vb,
-      '-bufsize', `${opts.videoBitrateKbps * 2}k`,
-      '-c:a', 'aac',
-      '-b:a', `${opts.audioBitrateKbps}k`,
-      '-ar', '44100',
-      '-ac', '2',
-      '-flags', '+global_header',
-      '-f', 'tee',
-      outputs.join('|'),
-    ];
+    const args = ['-hide_banner', '-loglevel', 'warning', '-fflags', '+genpts', '-i', 'pipe:0'];
+
+    if (outputs.length > 0) {
+      // Salida nula: si todas las plataformas fallan, FFmpeg sigue vivo y la grabación no se pierde.
+      outputs.push('[f=null]null');
+      // Salida 1: una sola codificación para todas las plataformas (muxer tee).
+      args.push(
+        '-map', '0:v:0',
+        '-map', '0:a:0?',
+        '-c:v', 'libx264',
+        '-preset', 'veryfast',
+        '-tune', 'zerolatency',
+        '-profile:v', 'main',
+        '-pix_fmt', 'yuv420p',
+        '-r', String(opts.fps),
+        '-g', String(gop),
+        '-keyint_min', String(gop),
+        '-sc_threshold', '0',
+        '-b:v', vb,
+        '-maxrate', vb,
+        '-bufsize', `${opts.videoBitrateKbps * 2}k`,
+        '-c:a', 'aac',
+        '-b:a', `${opts.audioBitrateKbps}k`,
+        '-ar', '44100',
+        '-ac', '2',
+        '-flags', '+global_header',
+        '-f', 'tee',
+        outputs.join('|'),
+      );
+    }
+    // Salida 2 (opcional): grabación en alta calidad, codificación independiente.
+    args.push(...highQualityArgs);
 
     this.stderrTail = [];
     this.setStatus({ state: 'starting', recordingPath });

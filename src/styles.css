@@ -121,3 +121,6 @@ label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px
   position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
   background: var(--panel-2); border: 1px solid var(--accent); padding: 10px 16px; border-radius: 10px; z-index: 10;
 }
+
+button.ghost { background: transparent; border-color: transparent; padding: 0 4px; opacity: 0.5; }
+button.ghost:hover { opacity: 1; border-color: transparent; }

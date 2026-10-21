@@ -6,6 +6,16 @@ export interface OverlayText {
   until: number;
 }
 
+export interface OverlayComment {
+  author: string;
+  text: string;
+  platform: string;
+  at: number;
+}
+
+const COMMENT_SECONDS = 18;
+const MAX_COMMENTS = 5;
+
 export const SIZES: Record<Orientation, { width: number; height: number }> = {
   vertical: { width: 1080, height: 1920 },
   horizontal: { width: 1920, height: 1080 },
@@ -25,6 +35,12 @@ export class Compositor {
   overlay: OverlayText | null = null;
   brandLabel = '';
   mirror = false;
+  showComments = true;
+  private comments: OverlayComment[] = [];
+
+  addComment(c: OverlayComment) {
+    this.comments = [...this.comments, c].slice(-MAX_COMMENTS);
+  }
 
   constructor(public orientation: Orientation) {
     this.canvas = document.createElement('canvas');
@@ -103,14 +119,65 @@ export class Compositor {
       ctx.fillText(this.brandLabel, pad * 2, pad + fs * 0.95);
     }
 
+    let answerBoxTop = H;
     if (this.overlay && Date.now() < this.overlay.until) {
-      this.drawOverlay(this.overlay);
+      answerBoxTop = this.drawOverlay(this.overlay);
     } else if (this.overlay) {
       this.overlay = null;
     }
+
+    if (this.showComments) {
+      const now = Date.now();
+      this.comments = this.comments.filter((c) => now - c.at < COMMENT_SECONDS * 1000);
+      if (this.comments.length) this.drawComments(answerBoxTop);
+    }
   }
 
-  private drawOverlay(o: OverlayText) {
+  /** Comentarios recientes, estilo TikTok, sobre la zona inferior izquierda. */
+  private drawComments(bottomLimit: number) {
+    const { ctx, canvas } = this;
+    const W = canvas.width;
+    const H = canvas.height;
+    const margin = Math.round(W * 0.045);
+    const fs = Math.round(W * 0.026);
+    const maxWidth = Math.min(W * 0.72, W - margin * 2) - margin;
+    const lineGap = 1.25;
+    const bottom = Math.min(bottomLimit - margin * 0.5, H - margin * (this.orientation === 'vertical' ? 3.5 : 1.5));
+    let y = bottom;
+    const now = Date.now();
+    ctx.textAlign = 'left';
+    for (let i = this.comments.length - 1; i >= 0; i--) {
+      const c = this.comments[i];
+      const age = (now - c.at) / 1000;
+      const alpha = age > COMMENT_SECONDS - 2 ? Math.max(0, (COMMENT_SECONDS - age) / 2) : 1;
+      ctx.font = `600 ${fs}px sans-serif`;
+      const name = `${c.author}  `;
+      const nameW = ctx.measureText(name).width;
+      ctx.font = `400 ${fs}px sans-serif`;
+      const lines = wrap(ctx, c.text, maxWidth - nameW).slice(0, 2);
+      const boxH = lines.length * fs * lineGap + fs * 0.7;
+      y -= boxH + fs * 0.35;
+      if (y < H * 0.35) break;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = 'rgba(0,0,0,0.42)';
+      roundRect(ctx, margin, y, Math.min(maxWidth + margin, W - margin * 2), boxH, fs * 0.5);
+      ctx.fill();
+      ctx.fillStyle = '#4fd1c5';
+      ctx.font = `600 ${fs}px sans-serif`;
+      ctx.fillText(name, margin + fs * 0.5, y + fs * 1.15);
+      ctx.fillStyle = '#fff';
+      ctx.font = `400 ${fs}px sans-serif`;
+      let cy = y + fs * 1.15;
+      for (const l of lines) {
+        ctx.fillText(l, margin + fs * 0.5 + (cy === y + fs * 1.15 ? nameW : 0), cy);
+        cy += fs * lineGap;
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /** Dibuja la respuesta y devuelve la coordenada superior de la caja. */
+  private drawOverlay(o: OverlayText): number {
     const { ctx, canvas } = this;
     const W = canvas.width;
     const H = canvas.height;
@@ -149,6 +216,7 @@ export class Compositor {
       ctx.fillText(l, margin * 2, cy);
       cy += aSize * lineGap;
     }
+    return y;
   }
 }
 

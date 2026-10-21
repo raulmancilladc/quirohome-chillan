@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
-  AppSettings, ChatMessage, Platform, PlatformConnectionStatus, StreamStartOptions, StreamStatus, SuggestedAnswer,
+  AppSettings, BlockedUser, ChatMessage, FaqEntry, Platform, PlatformConnectionStatus, StreamStartOptions, StreamStatus, SuggestedAnswer,
 } from '../shared/types';
 
 export interface AnsweredEvent {
@@ -29,6 +29,7 @@ const api = {
   settings: {
     get: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
     set: (s: AppSettings): Promise<AppSettings> => ipcRenderer.invoke('settings:set', s),
+    onChanged: (cb: (s: AppSettings) => void) => on<AppSettings>('settings:changed', cb),
   },
   chat: {
     connect: (): Promise<PlatformConnectionStatus[]> => ipcRenderer.invoke('chat:connect'),
@@ -36,6 +37,9 @@ const api = {
     answer: (message: ChatMessage, suggestion: SuggestedAnswer): Promise<void> => ipcRenderer.invoke('chat:answer', { message, suggestion }),
     manualQuestion: (platform: Platform, text: string): Promise<SuggestedAnswer | null> => ipcRenderer.invoke('chat:manualQuestion', { platform, text }),
     canReply: (platform: Platform): Promise<boolean> => ipcRenderer.invoke('chat:canReply', platform),
+    block: (platform: Platform, author: string): Promise<BlockedUser[]> => ipcRenderer.invoke('chat:block', { platform, author }),
+    unblock: (platform: Platform, author: string): Promise<BlockedUser[]> => ipcRenderer.invoke('chat:unblock', { platform, author }),
+    onLearned: (cb: (f: FaqEntry) => void) => on<FaqEntry>('faq:learned', cb),
     onMessage: (cb: (m: ChatMessage) => void) => on<ChatMessage>('chat:message', cb),
     onSuggestion: (cb: (s: SuggestedAnswer) => void) => on<SuggestedAnswer>('chat:suggestion', cb),
     onAnswered: (cb: (e: AnsweredEvent) => void) => on<AnsweredEvent>('chat:answered', cb),

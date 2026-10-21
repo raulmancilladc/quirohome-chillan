@@ -61,6 +61,17 @@ export function Settings({ settings, onSave, onToast }: Props) {
           </div>
         </div>
         <label className="row"><input type="checkbox" style={{ width: 'auto' }} checked={settings.recordLocally} onChange={(e) => onSave({ ...settings, recordLocally: e.target.checked })} /> Guardar una copia de cada transmisión en la carpeta Videos</label>
+        {settings.recordLocally && (
+          <div className="field" style={{ marginTop: 8 }}>
+            <label>Calidad de la grabación</label>
+            <select value={settings.recordingQuality} onChange={(e) => onSave({ ...settings, recordingQuality: e.target.value as AppSettings['recordingQuality'] })}>
+              <option value="high">Alta calidad para editar reels (archivo MP4 aparte, más pesado)</option>
+              <option value="stream">Igual que la transmisión (más liviano)</option>
+            </select>
+            <p className="help">Junto al video se guarda un archivo .srt con cada comentario y el segundo en que apareció, para ubicar los mejores momentos al editar.</p>
+          </div>
+        )}
+        <label className="row"><input type="checkbox" style={{ width: 'auto' }} checked={settings.showCommentsOnVideo} onChange={(e) => onSave({ ...settings, showCommentsOnVideo: e.target.checked })} /> Mostrar los comentarios del público sobre el video (quedan en la grabación)</label>
         <div className="row" style={{ marginTop: 8 }}>
           <button className="small" onClick={() => window.quirolive.stream.openRecordings()}>Abrir carpeta de grabaciones</button>
           <span className="help">FFmpeg: <code>{ffmpeg}</code></span>
@@ -112,6 +123,19 @@ export function Settings({ settings, onSave, onToast }: Props) {
           <div className="field"><label>sessionid (opcional, para responder)</label><input type="password" value={chat.tiktok.sessionId ?? ''} onChange={(e) => setChat('tiktok', { sessionId: e.target.value })} /></div>
           <div className="field"><label>tt-target-idc (opcional)</label><input value={chat.tiktok.ttTargetIdc ?? ''} onChange={(e) => setChat('tiktok', { ttTargetIdc: e.target.value })} /></div>
         </div>
+      </div>
+
+      <div className="card">
+        <h3>🚫 Personas bloqueadas</h3>
+        <p className="help">Sus comentarios no se muestran ni se responden. Se bloquean con el botón 🚫 de cada comentario en el panel En vivo.</p>
+        {settings.blockedUsers.length === 0 && <p className="muted small-text">Nadie bloqueado.</p>}
+        {settings.blockedUsers.map((b) => (
+          <div className="row" key={`${b.platform}-${b.author}`} style={{ marginBottom: 6 }}>
+            <span className={`plat ${b.platform}`} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, color: '#fff', textTransform: 'uppercase', fontWeight: 700 }}>{b.platform}</span>
+            <span className="grow">{b.author}</span>
+            <button className="small" onClick={() => window.quirolive.chat.unblock(b.platform, b.author)}>Desbloquear</button>
+          </div>
+        ))}
       </div>
 
       <div className="card">

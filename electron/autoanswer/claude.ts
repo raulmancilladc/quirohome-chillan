@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { BusinessInfo, FaqEntry } from '../../shared/types';
+import type { AnsweredRecord, BusinessInfo, FaqEntry } from '../../shared/types';
 import { fillTemplate } from './engine';
 import knowledge from './knowledge.default.md?raw';
 
@@ -38,12 +38,21 @@ Reglas:
 - Si el mensaje no es una pregunta para el negocio, o no tienes la información, responde exactamente: ${NO_ANSWER}`;
 }
 
+function buildExamples(history: AnsweredRecord[]): string {
+  const recent = history.slice(-40);
+  if (recent.length === 0) return '';
+  const lines = recent.map((h) => `- Comentario: "${h.question}"\n  Respuesta de Raúl: "${h.answer}"`).join('\n');
+  return `\n\nAsí ha respondido Raúl antes en sus lives (imita este estilo y, si la pregunta es parecida, la misma respuesta):\n${lines}`;
+}
+
 /** Pide a Claude una respuesta corta basada solo en los datos del negocio. */
 export async function askClaude(
   question: string,
   faq: FaqEntry[],
   business: BusinessInfo,
   apiKey: string,
+  history: AnsweredRecord[] = [],
+  answerEverything = false,
 ): Promise<string | null> {
   const client = new Anthropic({ apiKey });
   try {
@@ -51,7 +60,16 @@ export async function askClaude(
       model: 'claude-opus-5-5',
       max_tokens: 300,
       output_config: { effort: 'low' },
-      system: [{ type: 'text', text: buildSystemPrompt(faq, business), cache_control: { type: 'ephemeral' } }],
+      system: [
+        { type: 'text', text: buildSystemPrompt(faq, business), cache_control: { type: 'ephemeral' } },
+        {
+          type: 'text',
+          text:
+            (answerEverything
+              ? '\nModo "contestar todo": si el comentario es un saludo, un halago, una broma amable o un comentario general, responde igual con una frase corta y cálida en la voz de Raúl (sin inventar datos). Solo usa NO_RESPONDER para spam, insultos, o cosas sin ninguna relación.'
+              : '') + buildExamples(history),
+        },
+      ],
       messages: [{ role: 'user', content: question }],
     });
     if (response.stop_reason === 'refusal') return null;

@@ -47,7 +47,9 @@ export function FaqEditor({ settings, onSave }: Props) {
         </div>
         <label className="row"><input type="checkbox" style={{ width: 'auto' }} checked={auto.showOverlay} onChange={(e) => setAuto({ showOverlay: e.target.checked })} /> Mostrar la respuesta en pantalla (todos la ven, en todas las plataformas)</label>
         <label className="row"><input type="checkbox" style={{ width: 'auto' }} checked={auto.postToChat} onChange={(e) => setAuto({ postToChat: e.target.checked })} /> Publicar también en el chat (YouTube y Facebook; TikTok si configuras la sesión)</label>
-        <label className="row"><input type="checkbox" style={{ width: 'auto' }} checked={auto.useAi} onChange={(e) => setAuto({ useAi: e.target.checked })} /> Usar IA (Claude) para preguntas que no están en la lista, usando solo los datos del negocio</label>
+        <label className="row"><input type="checkbox" style={{ width: 'auto' }} checked={auto.answerEverything} onChange={(e) => setAuto({ answerEverything: e.target.checked })} /> Contestar todo: también saludos, agradecimientos y comentarios que no son preguntas</label>
+        <label className="row"><input type="checkbox" style={{ width: 'auto' }} checked={auto.learnFromAnswers} onChange={(e) => setAuto({ learnFromAnswers: e.target.checked })} /> Aprender: cada respuesta que edite o escriba a mano se guarda como nueva pregunta frecuente</label>
+        <label className="row"><input type="checkbox" style={{ width: 'auto' }} checked={auto.useAi} onChange={(e) => setAuto({ useAi: e.target.checked })} /> Usar IA (Claude) para preguntas que no están en la lista, usando solo los datos del negocio y tus respuestas anteriores</label>
         {auto.useAi && (
           <div className="field" style={{ marginTop: 8 }}>
             <label>Clave de API de Anthropic</label>
@@ -77,7 +79,8 @@ export function FaqEditor({ settings, onSave }: Props) {
         <h3>Preguntas frecuentes</h3>
         <p className="help">Cuando un comentario contiene alguna de las palabras clave, se propone (o publica) la respuesta. Campos disponibles: {'{{address}} {{howToGet}} {{website}} {{bookingUrl}} {{phone}} {{hours}} {{services}} {{name}} {{extra}}'}</p>
         {settings.faq.map((f) => (
-          <div className="faq-item" key={f.id}>
+          <div className="faq-item" key={f.id} style={f.id.startsWith('aprendida-') ? { borderColor: 'var(--accent)' } : undefined}>
+            {f.id.startsWith('aprendida-') && <div className="small-text" style={{ color: 'var(--accent)', marginBottom: 6 }}>✨ Aprendida en un live</div>}
             <div className="row" style={{ marginBottom: 8 }}>
               <input type="checkbox" style={{ width: 'auto' }} checked={f.enabled} onChange={(e) => updateFaq(f.id, { enabled: e.target.checked })} />
               <input className="grow" value={f.question} onChange={(e) => updateFaq(f.id, { question: e.target.value })} placeholder="Pregunta modelo" />

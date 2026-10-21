@@ -5,6 +5,7 @@ import type { AnsweredEvent } from '../../electron/preload';
 interface Props {
   settings: AppSettings;
   onOverlay: (question: string, answer: string) => void;
+  onComment: (m: ChatMessage) => void;
   onToast: (t: string) => void;
 }
 
@@ -19,7 +20,7 @@ const PLATFORM_LABEL: Record<Platform, string> = {
 };
 
 /** Chat unificado con sugerencias de respuesta y botón de "Responder". */
-export function ChatPanel({ settings, onOverlay, onToast }: Props) {
+export function ChatPanel({ settings, onOverlay, onComment, onToast }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
   const [conn, setConn] = useState<Record<string, PlatformConnectionStatus>>({});
   const [manual, setManual] = useState('');
@@ -29,7 +30,11 @@ export function ChatPanel({ settings, onOverlay, onToast }: Props) {
 
   useEffect(() => {
     const offs = [
-      window.quirolive.chat.onMessage((m) => setRows((r) => [...r.slice(-300), { message: m }])),
+      window.quirolive.chat.onMessage((m) => {
+        setRows((r) => [...r.slice(-300), { message: m }]);
+        onComment(m);
+      }),
+      window.quirolive.chat.onLearned((f) => onToast(`Aprendido: “${f.question}” ahora se responde sola ✅`)),
       window.quirolive.chat.onSuggestion((s) => setRows((r) => r.map((row) => (row.message.id === s.messageId ? { ...row, suggestion: s } : row)))),
       window.quirolive.chat.onAnswered((e: AnsweredEvent) => {
         setRows((r) => r.map((row) => (row.message.id === e.message.id ? { ...row, suggestion: e.suggestion, answered: { posted: e.posted, text: e.suggestion.answer } } : row)));
@@ -38,7 +43,13 @@ export function ChatPanel({ settings, onOverlay, onToast }: Props) {
       window.quirolive.chat.onStatus((s) => setConn((c) => ({ ...c, [s.platform]: s }))),
     ];
     return () => offs.forEach((f) => f());
-  }, [onOverlay]);
+  }, [onOverlay, onComment, onToast]);
+
+  const block = async (m: ChatMessage) => {
+    await window.quirolive.chat.block(m.platform, m.author);
+    setRows((r) => r.filter((row) => !(row.message.platform === m.platform && row.message.author === m.author)));
+    onToast(`${m.author} bloqueado. Se puede desbloquear en Ajustes.`);
+  };
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
@@ -83,7 +94,7 @@ export function ChatPanel({ settings, onOverlay, onToast }: Props) {
       <div className="messages" ref={listRef}>
         {visible.length === 0 && <div className="muted small-text" style={{ padding: 12 }}>Aquí aparecerán los comentarios de todas las plataformas. Las preguntas reconocidas traerán una respuesta sugerida.</div>}
         {visible.map((row) => (
-          <MessageRow key={row.message.id} row={row} mode={settings.autoAnswer.mode} onAnswer={answer} />
+          <MessageRow key={row.message.id} row={row} mode={settings.autoAnswer.mode} onAnswer={answer} onBlock={block} />
         ))}
       </div>
       <div className="manual">
@@ -100,7 +111,7 @@ export function ChatPanel({ settings, onOverlay, onToast }: Props) {
   );
 }
 
-function MessageRow({ row, mode, onAnswer }: { row: Row; mode: AppSettings['autoAnswer']['mode']; onAnswer: (row: Row, text: string) => void }) {
+function MessageRow({ row, mode, onAnswer, onBlock }: { row: Row; mode: AppSettings['autoAnswer']['mode']; onAnswer: (row: Row, text: string) => void; onBlock: (m: ChatMessage) => void }) {
   const [text, setText] = useState(row.suggestion?.answer ?? '');
   const [editing, setEditing] = useState(false);
   useEffect(() => {
@@ -114,6 +125,10 @@ function MessageRow({ row, mode, onAnswer }: { row: Row; mode: AppSettings['auto
         <span className={`plat ${row.message.platform}`}>{row.message.platform}</span>
         <strong>{row.message.author}</strong>
         <span>{new Date(row.message.timestamp).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</span>
+        <span className="grow" />
+        {row.message.author !== 'Pregunta manual' && (
+          <button className="small ghost" title="Bloquear a esta persona: no se muestra ni se responde" onClick={() => onBlock(row.message)}>🚫</button>
+        )}
       </div>
       <div>{row.message.text}</div>
 
