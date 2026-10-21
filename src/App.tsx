@@ -31,6 +31,7 @@ export default function App() {
   const [fit, setFit] = useState<'cover' | 'contain'>('contain');
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
+  const [background, setBackground] = useState<'blur' | 'dark' | 'brand'>('dark');
 
   useEffect(() => {
     const c = compositor.current;
@@ -38,7 +39,8 @@ export default function App() {
     c.fit = fit;
     c.zoom = zoom;
     c.rotation = rotation;
-  }, [fit, zoom, rotation]);
+    c.background = background;
+  }, [fit, zoom, rotation, background]);
 
   const compositor = useRef<Compositor | null>(null);
   const recorder = useRef<StreamRecorder | null>(null);
@@ -362,7 +364,14 @@ export default function App() {
                     <button className={fit === 'contain' ? 'active' : ''} onClick={() => setFit('contain')} title="Muestra la cámara completa con fondo difuminado">Completo</button>
                   </div>
                   <input type="range" min={1} max={2.5} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} style={{ width: 110 }} title={`Zoom ${zoom.toFixed(2)}x`} />
-                  <button className="small" title="Rotar la cámara 90° (si la Osmo está montada de lado)" onClick={() => setRotation((r) => (r + 90) % 360)}>⟳ {rotation}°</button>
+                  <button className="small" title="Rotar la cámara 90° (gira la Osmo a vertical y la imagen llena toda la pantalla)" onClick={() => setRotation((r) => (r + 90) % 360)}>⟳ {rotation}°</button>
+                  {fit === 'contain' && (
+                    <select value={background} onChange={(e) => setBackground(e.target.value as typeof background)} style={{ width: 130 }} title="Fondo cuando la cámara no llena la pantalla">
+                      <option value="dark">Fondo oscuro</option>
+                      <option value="brand">Fondo de marca</option>
+                      <option value="blur">Fondo difuminado</option>
+                    </select>
+                  )}
                 </div>
               </div>
               <button

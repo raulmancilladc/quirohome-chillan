@@ -41,6 +41,9 @@ export class Compositor {
   showComments = true;
   /** 'cover' llena la pantalla recortando; 'contain' muestra la cámara completa con fondo difuminado. */
   fit: 'cover' | 'contain' = 'contain';
+  /** Fondo cuando la cámara no llena la pantalla: difuminado, oscuro o color de marca. */
+  background: 'blur' | 'dark' | 'brand' = 'dark';
+  brandColor = '#1b3a5c';
   /** Zoom adicional sobre la cámara principal (1 = sin zoom). */
   zoom = 1;
   /** Rotación de la cámara principal en grados (0, 90, 180, 270). */
@@ -112,13 +115,27 @@ export class Compositor {
       const contain = Math.min(W / vw, H / vh);
 
       if (this.fit === 'contain' && contain < cover) {
-        // Fondo: la misma imagen ampliada y difuminada, para no dejar franjas negras.
-        ctx.save();
-        ctx.filter = `blur(${Math.round(W * 0.03)}px)`;
-        this.drawCamera(video, cover * 1.1, rotated);
-        ctx.restore();
-        ctx.fillStyle = 'rgba(0,0,0,0.25)';
-        ctx.fillRect(0, 0, W, H);
+        if (this.background === 'blur') {
+          // La misma imagen ampliada y difuminada.
+          ctx.save();
+          ctx.filter = `blur(${Math.round(W * 0.03)}px)`;
+          this.drawCamera(video, cover * 1.1, rotated);
+          ctx.restore();
+          ctx.fillStyle = 'rgba(0,0,0,0.35)';
+          ctx.fillRect(0, 0, W, H);
+        } else if (this.background === 'brand') {
+          const g = ctx.createLinearGradient(0, 0, 0, H);
+          g.addColorStop(0, this.brandColor);
+          g.addColorStop(1, '#0b1722');
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, W, H);
+        } else {
+          const g = ctx.createLinearGradient(0, 0, 0, H);
+          g.addColorStop(0, '#15181d');
+          g.addColorStop(1, '#000');
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, W, H);
+        }
       }
       const scale = (this.fit === 'contain' ? contain : cover) * this.zoom;
       this.drawCamera(video, scale, rotated);
