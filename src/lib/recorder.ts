@@ -36,6 +36,13 @@ export class StreamRecorder {
     this.recorder.start(1000);
   }
 
+  /** Cambia el micrófono sin cortar la transmisión. */
+  replaceAudio(track: MediaStreamTrack) {
+    if (!this.stream) return;
+    this.stream.getAudioTracks().forEach((t) => this.stream!.removeTrack(t));
+    this.stream.addTrack(track);
+  }
+
   stop() {
     this.recorder?.stop();
     this.recorder = null;

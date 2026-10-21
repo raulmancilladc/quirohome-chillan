@@ -55,6 +55,7 @@ const api = {
   app: {
     openExternal: (url: string): Promise<void> => ipcRenderer.invoke('app:openExternal', url),
     ffmpegPath: (): Promise<string> => ipcRenderer.invoke('app:ffmpegPath'),
+    setSystemMute: (muted: boolean): Promise<boolean> => ipcRenderer.invoke('app:setSystemMute', muted),
   },
 };
 

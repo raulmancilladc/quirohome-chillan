@@ -124,3 +124,23 @@ label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px
 
 button.ghost { background: transparent; border-color: transparent; padding: 0 4px; opacity: 0.5; }
 button.ghost:hover { opacity: 1; border-color: transparent; }
+.source { display: flex; flex-direction: column; gap: 2px; min-width: 200px; }
+.source label { margin: 0; font-size: 11px; }
+.source select { min-width: 160px; }
+.meter { height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; border: 1px solid var(--border); }
+.meter div { height: 100%; background: linear-gradient(90deg, var(--ok), var(--warn) 75%, var(--danger)); transition: width 80ms linear; }
+.meter.clip { border-color: var(--danger); }
+.echo-banner {
+  background: rgba(245, 101, 101, 0.12); border: 1px solid var(--danger); border-radius: 10px; padding: 10px 14px; font-size: 13px;
+}
+.echo-banner ol { margin: 6px 0 8px; padding-left: 20px; }
+.echo-banner li { margin: 2px 0; }
+.cam-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+.cam-btn { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; }
+.cam-btn .num {
+  display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px;
+  background: var(--border); font-weight: 800; font-size: 13px;
+}
+.cam-btn.active { border-color: var(--accent); background: rgba(79, 209, 197, 0.12); }
+.cam-btn.active .num { background: var(--accent); color: #062b28; }
+.cam-btn .name { font-size: 12px; }

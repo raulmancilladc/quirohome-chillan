@@ -3,6 +3,8 @@ import type { AppSettings, ChatMessage, Orientation, StreamStatus, SuggestedAnsw
 import type { AnsweredEvent } from '../electron/preload';
 import { Compositor, SIZES } from './lib/compositor';
 import { StreamRecorder } from './lib/recorder';
+import { AudioMonitor, type AudioReport } from './lib/audiomonitor';
+import { SourcesBar } from './components/SourcesBar';
 import { Preview } from './components/Preview';
 import { ChatPanel } from './components/ChatPanel';
 import { Destinations } from './components/Destinations';
@@ -18,13 +20,20 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [devices, setDevices] = useState<{ cams: MediaDeviceInfo[]; mics: MediaDeviceInfo[] }>({ cams: [], mics: [] });
   const [camId, setCamId] = useState<string>('');
+  const [pipCamId, setPipCamId] = useState<string>('');
   const [micId, setMicId] = useState<string>('');
   const [mirror, setMirror] = useState(true);
+  const [micMuted, setMicMuted] = useState(false);
+  const [audio, setAudio] = useState<AudioReport>({ level: 0, feedback: false, clipping: false });
+  const [echoDismissed, setEchoDismissed] = useState(0);
+  const [macMuted, setMacMuted] = useState(false);
 
   const compositor = useRef<Compositor | null>(null);
   const recorder = useRef<StreamRecorder | null>(null);
-  const videoEl = useRef<HTMLVideoElement | null>(null);
-  const mediaStream = useRef<MediaStream | null>(null);
+  const camStream = useRef<MediaStream | null>(null);
+  const pipStream = useRef<MediaStream | null>(null);
+  const micStream = useRef<MediaStream | null>(null);
+  const monitor = useRef<AudioMonitor | null>(null);
 
   const showToast = useCallback((t: string) => {
     setToast(t);
@@ -68,27 +77,44 @@ export default function App() {
     });
   }, []);
 
-  // Abrir la cámara seleccionada.
+  const refreshDevices = useCallback(async () => {
+    const list = await navigator.mediaDevices.enumerateDevices();
+    setDevices({ cams: list.filter((d) => d.kind === 'videoinput'), mics: list.filter((d) => d.kind === 'audioinput') });
+  }, []);
+
+  // Si se conecta o desconecta una cámara (ej. la Osmo por USB), refrescar la lista.
+  useEffect(() => {
+    navigator.mediaDevices.addEventListener('devicechange', refreshDevices);
+    return () => navigator.mediaDevices.removeEventListener('devicechange', refreshDevices);
+  }, [refreshDevices]);
+
+  async function openCamera(deviceId: string): Promise<{ stream: MediaStream; video: HTMLVideoElement }> {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: deviceId ? { exact: deviceId } : undefined, width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 30 } },
+      audio: false,
+    });
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.muted = true;
+    video.playsInline = true;
+    await video.play();
+    return { stream, video };
+  }
+
+  // Cámara principal (se puede cambiar en vivo: el audio va aparte).
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      mediaStream.current?.getTracks().forEach((t) => t.stop());
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: camId ? { exact: camId } : undefined, width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 30 } },
-          audio: { deviceId: micId ? { exact: micId } : undefined, echoCancellation: true, noiseSuppression: true },
-        });
-        if (cancelled) return;
-        mediaStream.current = stream;
-        const v = document.createElement('video');
-        v.srcObject = stream;
-        v.muted = true;
-        v.playsInline = true;
-        await v.play();
-        videoEl.current = v;
-        compositor.current?.setVideo(v);
-        const list = await navigator.mediaDevices.enumerateDevices();
-        setDevices({ cams: list.filter((d) => d.kind === 'videoinput'), mics: list.filter((d) => d.kind === 'audioinput') });
+        const { stream, video } = await openCamera(camId);
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        camStream.current?.getTracks().forEach((t) => t.stop());
+        camStream.current = stream;
+        compositor.current?.setVideo(video);
+        await refreshDevices();
       } catch (err) {
         showToast(`No se pudo abrir la cámara: ${(err as Error).message}`);
       }
@@ -96,7 +122,96 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [camId, micId, showToast]);
+  }, [camId, showToast, refreshDevices]);
+
+  // Segunda cámara en recuadro (opcional).
+  useEffect(() => {
+    let cancelled = false;
+    pipStream.current?.getTracks().forEach((t) => t.stop());
+    pipStream.current = null;
+    compositor.current?.setPip(null);
+    if (!pipCamId) return;
+    (async () => {
+      try {
+        const { stream, video } = await openCamera(pipCamId);
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        pipStream.current = stream;
+        compositor.current?.setPip(video);
+      } catch (err) {
+        showToast(`No se pudo abrir la segunda cámara: ${(err as Error).message}`);
+        setPipCamId('');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pipCamId, showToast]);
+
+  // Micrófono: con medidor de nivel y detector de acople.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: { deviceId: micId ? { exact: micId } : undefined, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          video: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        micStream.current?.getTracks().forEach((t) => t.stop());
+        micStream.current = stream;
+        const track = stream.getAudioTracks()[0];
+        track.enabled = !micMuted;
+        monitor.current?.stop();
+        monitor.current = new AudioMonitor();
+        monitor.current.start(track, setAudio);
+        // Si ya estamos en vivo, cambiamos la pista de audio sin cortar la transmisión.
+        recorder.current?.replaceAudio(track);
+        await refreshDevices();
+      } catch (err) {
+        showToast(`No se pudo abrir el micrófono: ${(err as Error).message}`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [micId, showToast, refreshDevices]);
+
+  useEffect(() => {
+    const track = micStream.current?.getAudioTracks()[0];
+    if (track) track.enabled = !micMuted;
+  }, [micMuted]);
+
+  // Teclas 1, 2, 3… cambian la cámara principal al instante (salvo si estás escribiendo).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const n = Number(e.key);
+      if (!Number.isInteger(n) || n < 1 || n > 9) return;
+      const cam = devices.cams[n - 1];
+      if (!cam) return;
+      e.preventDefault();
+      setCamId(cam.deviceId);
+      showToast(`Cámara ${n}: ${cam.label || 'Cámara'}`);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [devices.cams, showToast]);
+
+  const toggleMacMute = async () => {
+    const next = !macMuted;
+    const ok = await window.quirolive.app.setSystemMute(next);
+    if (ok) setMacMuted(next);
+    else showToast('No pude cambiar el volumen del sistema. Usa la tecla de silencio del teclado.');
+  };
 
   useEffect(() => {
     if (compositor.current) compositor.current.mirror = mirror;
@@ -130,7 +245,7 @@ export default function App() {
         recordingQuality: settings.recordingQuality,
       });
       const rec = new StreamRecorder();
-      rec.start(compositor.current.canvas, mediaStream.current?.getAudioTracks()[0] ?? null, settings.fps, settings.videoBitrateKbps);
+      rec.start(compositor.current.canvas, micStream.current?.getAudioTracks()[0] ?? null, settings.fps, settings.videoBitrateKbps);
       recorder.current = rec;
       await window.quirolive.chat.connect();
     } catch (err) {
@@ -186,6 +301,20 @@ export default function App() {
         <div className="main">
           <div className="stage">
             <Preview compositor={compositor.current} live={status.state === 'live'} />
+            {audio.feedback && Date.now() - echoDismissed > 60_000 && (
+              <div className="echo-banner">
+                <strong>🔊 Se está escuchando eco o acople.</strong> El micrófono está captando los parlantes. Qué apagar, en orden:
+                <ol>
+                  <li>Silencia los parlantes del Mac (botón de al lado o tecla de silencio). La transmisión no lo necesita.</li>
+                  <li>Si estás mirando el live en el celular o en otra pestaña, silencia ese dispositivo.</li>
+                  <li>Si hay otro micrófono abierto (Osmo, audífonos, Zoom), déjalo solo en uno. Aquí se usa: <em>{devices.mics.find((d) => d.deviceId === micId)?.label || 'micrófono predeterminado'}</em>.</li>
+                </ol>
+                <div className="row">
+                  <button className="primary small" onClick={toggleMacMute}>{macMuted ? '🔈 Reactivar parlantes' : '🔇 Silenciar parlantes del Mac'}</button>
+                  <button className="small" onClick={() => setEchoDismissed(Date.now())}>Ya lo arreglé</button>
+                </div>
+              </div>
+            )}
             <div className="controls">
               <div className="segment">
                 <button className={settings.orientation === 'vertical' ? 'active' : ''} disabled={live} onClick={() => setOrientation('vertical')}>
@@ -195,21 +324,24 @@ export default function App() {
                   🖥️ Horizontal
                 </button>
               </div>
-              <select value={camId} onChange={(e) => setCamId(e.target.value)} style={{ width: 200 }} disabled={live}>
-                <option value="">Cámara predeterminada</option>
-                {devices.cams.map((d) => (
-                  <option key={d.deviceId} value={d.deviceId}>{d.label || 'Cámara'}</option>
-                ))}
-              </select>
-              <select value={micId} onChange={(e) => setMicId(e.target.value)} style={{ width: 200 }} disabled={live}>
-                <option value="">Micrófono predeterminado</option>
-                {devices.mics.map((d) => (
-                  <option key={d.deviceId} value={d.deviceId}>{d.label || 'Micrófono'}</option>
-                ))}
-              </select>
-              <label className="row" style={{ marginBottom: 0 }}>
-                <input type="checkbox" style={{ width: 'auto' }} checked={mirror} onChange={(e) => setMirror(e.target.checked)} /> Espejo
-              </label>
+              <SourcesBar
+                devices={devices}
+                camId={camId}
+                pipCamId={pipCamId}
+                micId={micId}
+                mirror={mirror}
+                micMuted={micMuted}
+                audio={audio}
+                onCam={(id) => {
+                  setCamId(id);
+                  if (id && id === pipCamId) setPipCamId('');
+                }}
+                onPip={setPipCamId}
+                onMic={setMicId}
+                onMirror={setMirror}
+                onMute={() => setMicMuted((m) => !m)}
+                onSwap={() => compositor.current?.swap()}
+              />
               <div className="grow" />
               {live ? (
                 <button className="danger golive" onClick={stopLive}>■ Finalizar</button>

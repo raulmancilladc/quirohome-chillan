@@ -30,6 +30,9 @@ export class Compositor {
   readonly canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private video: HTMLVideoElement | null = null;
+  private pip: HTMLVideoElement | null = null;
+  /** Esquina del recuadro de la segunda cámara. */
+  pipCorner: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' = 'top-right';
   private raf = 0;
   private running = false;
   overlay: OverlayText | null = null;
@@ -59,6 +62,17 @@ export class Compositor {
 
   setVideo(v: HTMLVideoElement | null) {
     this.video = v;
+  }
+
+  setPip(v: HTMLVideoElement | null) {
+    this.pip = v;
+  }
+
+  /** Intercambia cámara principal y recuadro. */
+  swap() {
+    const a = this.video;
+    this.video = this.pip;
+    this.pip = a;
   }
 
   start() {
@@ -104,6 +118,28 @@ export class Compositor {
       ctx.font = `${Math.round(W * 0.035)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.fillText('Esperando cámara…', W / 2, H / 2);
+    }
+
+    if (this.pip && this.pip.videoWidth > 0) {
+      const pw = Math.round(W * 0.3);
+      const ph = Math.round((pw * 9) / 16);
+      const m = Math.round(W * 0.035);
+      const x = this.pipCorner.endsWith('left') ? m : W - pw - m;
+      const y = this.pipCorner.startsWith('top') ? m * 2.4 : H - ph - m * (this.orientation === 'vertical' ? 5 : 2);
+      const vw = this.pip.videoWidth;
+      const vh = this.pip.videoHeight;
+      const sc = Math.max(pw / vw, ph / vh);
+      const sw = pw / sc;
+      const sh = ph / sc;
+      ctx.save();
+      roundRect(ctx, x, y, pw, ph, m * 0.4);
+      ctx.clip();
+      ctx.drawImage(this.pip, (vw - sw) / 2, (vh - sh) / 2, sw, sh, x, y, pw, ph);
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = Math.max(2, W * 0.003);
+      roundRect(ctx, x, y, pw, ph, m * 0.4);
+      ctx.stroke();
     }
 
     if (this.brandLabel) {

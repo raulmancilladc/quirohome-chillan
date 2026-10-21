@@ -211,6 +211,22 @@ ipcMain.handle('facebook:createLive', async (_e, title: string) => {
 ipcMain.handle('app:openExternal', (_e, url: string) => shell.openExternal(url));
 ipcMain.handle('app:ffmpegPath', () => resolveFfmpegPath());
 
+/** Silencia o reactiva los parlantes del computador (para cortar acoples). */
+ipcMain.handle('app:setSystemMute', async (_e, muted: boolean) => {
+  const { execFile } = await import('node:child_process');
+  const run = (cmd: string, args: string[]) =>
+    new Promise<boolean>((resolve) => execFile(cmd, args, (err) => resolve(!err)));
+  if (process.platform === 'darwin') {
+    return run('osascript', ['-e', `set volume output muted ${muted ? 'true' : 'false'}`]);
+  }
+  if (process.platform === 'win32') {
+    // Alterna el silencio con la tecla multimedia (no hay forma directa sin dependencias).
+    const ps = '(New-Object -ComObject WScript.Shell).SendKeys([char]173)';
+    return run('powershell', ['-NoProfile', '-Command', ps]);
+  }
+  return run('pactl', ['set-sink-mute', '@DEFAULT_SINK@', muted ? '1' : '0']);
+});
+
 app.whenReady().then(() => {
   createWindow();
   app.on('activate', () => {
