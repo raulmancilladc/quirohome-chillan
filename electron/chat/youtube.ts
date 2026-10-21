@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import http from 'node:http';
 import { shell } from 'electron';
-import type { ChatMessage } from '../../shared/types';
+import type { ChatMessage, YouTubeAccount } from '../../shared/types';
 import type { ChatConnector } from './types';
 
 const SCOPES = ['https://www.googleapis.com/auth/youtube', 'https://www.googleapis.com/auth/youtube.force-ssl'];
@@ -146,6 +146,8 @@ export class YouTubeApi {
 export class YouTubeChat extends EventEmitter implements ChatConnector {
   readonly platform = 'youtube' as const;
   readonly canReply = true;
+  readonly accountId: string;
+  readonly accountLabel: string;
   private api: YouTubeApi;
   private liveChatId: string | null = null;
   private pageToken: string | undefined;
@@ -153,9 +155,11 @@ export class YouTubeChat extends EventEmitter implements ChatConnector {
   private running = false;
   private seen = new Set<string>();
 
-  constructor(creds: YouTubeCredentials) {
+  constructor(account: YouTubeAccount) {
     super();
-    this.api = new YouTubeApi(creds);
+    this.accountId = account.id;
+    this.accountLabel = account.label;
+    this.api = new YouTubeApi(account);
   }
 
   async connect(): Promise<void> {
@@ -193,8 +197,10 @@ export class YouTubeChat extends EventEmitter implements ChatConnector {
             if (!item.snippet.displayMessage || this.seen.has(item.id)) continue;
             this.seen.add(item.id);
             const m: ChatMessage = {
-              id: `yt-${item.id}`,
+              id: `yt-${this.accountId}-${item.id}`,
               platform: 'youtube',
+              accountId: this.accountId,
+              accountLabel: this.accountLabel,
               author: item.authorDetails.displayName,
               text: item.snippet.displayMessage,
               timestamp: Date.parse(item.snippet.publishedAt),

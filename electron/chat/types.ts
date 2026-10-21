@@ -3,6 +3,8 @@ import type { ChatMessage, Platform } from '../../shared/types';
 
 export interface ChatConnector extends EventEmitter {
   readonly platform: Platform;
+  readonly accountId: string;
+  readonly accountLabel: string;
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   /** Publica una respuesta en el chat de origen. Devuelve false si la plataforma no lo permite. */

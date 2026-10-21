@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { TikTokLiveConnection, WebcastEvent, ControlEvent } from 'tiktok-live-connector';
-import type { ChatMessage } from '../../shared/types';
+import type { ChatMessage, TikTokAccount } from '../../shared/types';
 import type { ChatConnector } from './types';
 
 export interface TikTokCredentials {
@@ -17,13 +17,19 @@ export interface TikTokCredentials {
 export class TikTokChat extends EventEmitter implements ChatConnector {
   readonly platform = 'tiktok' as const;
   readonly canReply: boolean;
+  readonly accountId: string;
+  readonly accountLabel: string;
+  private creds: TikTokCredentials;
   private conn: TikTokLiveConnection | null = null;
   private retry: NodeJS.Timeout | null = null;
   private running = false;
 
-  constructor(private creds: TikTokCredentials) {
+  constructor(account: TikTokAccount) {
     super();
-    this.canReply = Boolean(creds.sessionId && creds.ttTargetIdc);
+    this.accountId = account.id;
+    this.accountLabel = account.label;
+    this.creds = account;
+    this.canReply = Boolean(account.sessionId && account.ttTargetIdc);
   }
 
   async connect(): Promise<void> {
@@ -46,8 +52,10 @@ export class TikTokChat extends EventEmitter implements ChatConnector {
     conn.on(WebcastEvent.CHAT, (data) => {
       if (!data.content) return;
       const m: ChatMessage = {
-        id: `tt-${data.common?.msgId ?? `${Date.now()}-${Math.random()}`}`,
+        id: `tt-${this.accountId}-${data.common?.msgId ?? `${Date.now()}-${Math.random()}`}`,
         platform: 'tiktok',
+        accountId: this.accountId,
+        accountLabel: this.accountLabel,
         author: data.user?.nickname || data.user?.displayId || 'Usuario de TikTok',
         text: data.content,
         timestamp: Date.now(),

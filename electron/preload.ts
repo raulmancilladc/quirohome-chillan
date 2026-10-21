@@ -36,7 +36,7 @@ const api = {
     disconnect: (): Promise<void> => ipcRenderer.invoke('chat:disconnect'),
     answer: (message: ChatMessage, suggestion: SuggestedAnswer): Promise<void> => ipcRenderer.invoke('chat:answer', { message, suggestion }),
     manualQuestion: (platform: Platform, text: string): Promise<SuggestedAnswer | null> => ipcRenderer.invoke('chat:manualQuestion', { platform, text }),
-    canReply: (platform: Platform): Promise<boolean> => ipcRenderer.invoke('chat:canReply', platform),
+    canReply: (accountId: string): Promise<boolean> => ipcRenderer.invoke('chat:canReply', accountId),
     block: (platform: Platform, author: string): Promise<BlockedUser[]> => ipcRenderer.invoke('chat:block', { platform, author }),
     unblock: (platform: Platform, author: string): Promise<BlockedUser[]> => ipcRenderer.invoke('chat:unblock', { platform, author }),
     onLearned: (cb: (f: FaqEntry) => void) => on<FaqEntry>('faq:learned', cb),
@@ -46,11 +46,11 @@ const api = {
     onStatus: (cb: (s: PlatformConnectionStatus) => void) => on<PlatformConnectionStatus>('chat:status', cb),
   },
   youtube: {
-    login: (): Promise<boolean> => ipcRenderer.invoke('youtube:login'),
-    streamKey: (): Promise<{ url: string; key: string } | null> => ipcRenderer.invoke('youtube:streamKey'),
+    login: (accountId: string): Promise<boolean> => ipcRenderer.invoke('youtube:login', accountId),
+    streamKey: (accountId: string): Promise<{ url: string; key: string } | null> => ipcRenderer.invoke('youtube:streamKey', accountId),
   },
   facebook: {
-    createLive: (title: string): Promise<{ id: string; url: string; key: string }> => ipcRenderer.invoke('facebook:createLive', title),
+    createLive: (accountId: string, title: string): Promise<{ id: string; url: string; key: string }> => ipcRenderer.invoke('facebook:createLive', { accountId, title }),
   },
   app: {
     openExternal: (url: string): Promise<void> => ipcRenderer.invoke('app:openExternal', url),

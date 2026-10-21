@@ -1,7 +1,7 @@
 import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { AppSettings } from '../shared/types';
+import type { AppSettings, ChatAccount } from '../shared/types';
 import defaultFaq from './autoanswer/faq.default.json';
 
 const FILE = () => path.join(app.getPath('userData'), 'settings.json');
@@ -26,12 +26,7 @@ export const defaultSettings = (): AppSettings => ({
     { id: 'instagram', platform: 'instagram', name: 'Instagram', url: 'rtmps://live-upload.instagram.com:443/rtmp', key: '', enabled: false },
     { id: 'tiktok', platform: 'tiktok', name: 'TikTok', url: '', key: '', enabled: false },
   ],
-  chat: {
-    youtube: { enabled: false, clientId: '', clientSecret: '' },
-    facebook: { enabled: false, pageId: '', pageAccessToken: '' },
-    instagram: { enabled: false },
-    tiktok: { enabled: false, username: '' },
-  },
+  accounts: [],
   autoAnswer: {
     mode: 'suggest',
     showOverlay: true,
@@ -59,10 +54,28 @@ export const defaultSettings = (): AppSettings => ({
   faq: defaultFaq as AppSettings['faq'],
 });
 
+/** Formato antiguo: una sola cuenta por plataforma. */
+interface LegacyChat {
+  youtube?: { enabled: boolean; clientId: string; clientSecret: string; refreshToken?: string };
+  facebook?: { enabled: boolean; pageId: string; pageAccessToken: string };
+  instagram?: { enabled: boolean };
+  tiktok?: { enabled: boolean; username: string; sessionId?: string; ttTargetIdc?: string; signApiKey?: string };
+}
+
+function migrateLegacyChat(chat?: LegacyChat): ChatAccount[] {
+  if (!chat) return [];
+  const out: ChatAccount[] = [];
+  if (chat.youtube?.clientId) out.push({ id: 'youtube-1', platform: 'youtube', label: 'YouTube', ...chat.youtube });
+  if (chat.facebook?.pageId) out.push({ id: 'facebook-1', platform: 'facebook', label: 'Facebook', ...chat.facebook });
+  if (chat.tiktok?.username) out.push({ id: 'tiktok-1', platform: 'tiktok', label: `@${chat.tiktok.username.replace(/^@/, '')}`, ...chat.tiktok });
+  if (chat.instagram?.enabled) out.push({ id: 'instagram-1', platform: 'instagram', label: 'Instagram', enabled: true });
+  return out;
+}
+
 export function loadSettings(): AppSettings {
   try {
     const raw = fs.readFileSync(FILE(), 'utf8');
-    const saved = JSON.parse(raw) as Partial<AppSettings>;
+    const saved = JSON.parse(raw) as Partial<AppSettings> & { chat?: LegacyChat };
     const base = defaultSettings();
     // Si la app traía datos antiguos por defecto y el usuario no alcanzó a editarlos,
     // cargamos los nuevos datos del negocio y las nuevas preguntas frecuentes.
@@ -70,7 +83,7 @@ export function loadSettings(): AppSettings {
     return {
       ...base,
       ...saved,
-      chat: { ...base.chat, ...(saved.chat ?? {}) },
+      accounts: saved.accounts ?? migrateLegacyChat(saved.chat),
       autoAnswer: { ...base.autoAnswer, ...(saved.autoAnswer ?? {}) },
       defaultsVersion: DEFAULTS_VERSION,
       business: stale ? base.business : { ...base.business, ...(saved.business ?? {}) },

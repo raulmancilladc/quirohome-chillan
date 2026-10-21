@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import type { ChatMessage } from '../../shared/types';
+import type { ChatMessage, InstagramAccount } from '../../shared/types';
 import type { ChatConnector } from './types';
 
 /**
@@ -11,6 +11,14 @@ import type { ChatConnector } from './types';
 export class InstagramChat extends EventEmitter implements ChatConnector {
   readonly platform = 'instagram' as const;
   readonly canReply = false;
+  readonly accountId: string;
+  readonly accountLabel: string;
+
+  constructor(account: InstagramAccount) {
+    super();
+    this.accountId = account.id;
+    this.accountLabel = account.label;
+  }
 
   async connect(): Promise<void> {
     this.emit('status', false, 'Instagram: sin API de comentarios en vivo. Usa "Agregar pregunta manual".');

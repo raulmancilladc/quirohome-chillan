@@ -8,6 +8,8 @@ export interface StreamTarget {
   id: string;
   platform: Platform;
   name: string;
+  /** Cuenta asociada (para obtener la clave automáticamente), opcional. */
+  accountId?: string;
   /** URL RTMP/RTMPS del servidor de ingesta, sin la clave. */
   url: string;
   /** Clave de transmisión (stream key). */
@@ -40,6 +42,9 @@ export interface StreamStatus {
 export interface ChatMessage {
   id: string;
   platform: Platform;
+  /** Cuenta por la que llegó el mensaje (una plataforma puede tener varias). */
+  accountId: string;
+  accountLabel: string;
   author: string;
   text: string;
   timestamp: number;
@@ -82,32 +87,36 @@ export interface BusinessInfo {
   extra: string;
 }
 
-export interface PlatformChatConfig {
-  youtube: {
-    enabled: boolean;
-    clientId: string;
-    clientSecret: string;
-    refreshToken?: string;
-  };
-  facebook: {
-    enabled: boolean;
-    pageId: string;
-    pageAccessToken: string;
-  };
-  instagram: {
-    enabled: boolean;
-    note?: string;
-  };
-  tiktok: {
-    enabled: boolean;
-    username: string;
-    /** Cookie sessionid (opcional) para poder responder en el chat de TikTok. */
-    sessionId?: string;
-    ttTargetIdc?: string;
-    /** API key de Euler Stream (opcional, mejora la estabilidad de la conexión). */
-    signApiKey?: string;
-  };
+interface ChatAccountBase {
+  id: string;
+  /** Nombre para reconocerla, ej. "@raulmancilladc" o "QuiroHome Chillán". */
+  label: string;
+  enabled: boolean;
 }
+export interface YouTubeAccount extends ChatAccountBase {
+  platform: 'youtube';
+  clientId: string;
+  clientSecret: string;
+  refreshToken?: string;
+}
+export interface FacebookAccount extends ChatAccountBase {
+  platform: 'facebook';
+  pageId: string;
+  pageAccessToken: string;
+}
+export interface TikTokAccount extends ChatAccountBase {
+  platform: 'tiktok';
+  username: string;
+  /** Cookie sessionid (opcional) para poder responder en el chat de TikTok. */
+  sessionId?: string;
+  ttTargetIdc?: string;
+  /** API key de Euler Stream (opcional, mejora la estabilidad de la conexión). */
+  signApiKey?: string;
+}
+export interface InstagramAccount extends ChatAccountBase {
+  platform: 'instagram';
+}
+export type ChatAccount = YouTubeAccount | FacebookAccount | TikTokAccount | InstagramAccount;
 
 export interface BlockedUser {
   platform: Platform;
@@ -142,7 +151,8 @@ export interface AppSettings {
   /** Historial de respuestas dadas (las últimas), para aprender. */
   answeredHistory: AnsweredRecord[];
   targets: StreamTarget[];
-  chat: PlatformChatConfig;
+  /** Cuentas conectadas para leer y responder chats (varias por plataforma). */
+  accounts: ChatAccount[];
   autoAnswer: {
     mode: AutoAnswerMode;
     /** Mostrar la respuesta como texto sobre el video (visible en todas las plataformas). */
@@ -163,6 +173,8 @@ export interface AppSettings {
 
 export interface PlatformConnectionStatus {
   platform: Platform;
+  accountId: string;
+  accountLabel: string;
   connected: boolean;
   message?: string;
 }

@@ -1,33 +1,38 @@
 import { EventEmitter } from 'node:events';
-import type { ChatMessage, Platform, PlatformChatConfig, PlatformConnectionStatus } from '../../shared/types';
+import type { ChatAccount, ChatMessage, PlatformConnectionStatus } from '../../shared/types';
 import type { ChatConnector } from './types';
 import { YouTubeChat } from './youtube';
 import { FacebookChat } from './facebook';
 import { TikTokChat } from './tiktok';
 import { InstagramChat } from './instagram';
 
-/** Une los chats de todas las plataformas en un solo flujo de mensajes. */
+/** Une los chats de todas las cuentas (varias por plataforma) en un solo flujo de mensajes. */
 export class ChatAggregator extends EventEmitter {
-  private connectors = new Map<Platform, ChatConnector>();
-  private statuses = new Map<Platform, PlatformConnectionStatus>();
+  private connectors = new Map<string, ChatConnector>();
+  private statuses = new Map<string, PlatformConnectionStatus>();
 
-  async connectAll(cfg: PlatformChatConfig, facebookLiveId?: string): Promise<void> {
+  async connectAll(accounts: ChatAccount[], facebookLiveIds: Record<string, string> = {}): Promise<void> {
     await this.disconnectAll();
     const list: ChatConnector[] = [];
-    if (cfg.youtube.enabled && cfg.youtube.clientId && cfg.youtube.refreshToken) list.push(new YouTubeChat(cfg.youtube));
-    if (cfg.facebook.enabled && cfg.facebook.pageId && cfg.facebook.pageAccessToken) list.push(new FacebookChat(cfg.facebook, facebookLiveId));
-    if (cfg.tiktok.enabled && cfg.tiktok.username) list.push(new TikTokChat(cfg.tiktok));
-    if (cfg.instagram.enabled) list.push(new InstagramChat());
+    for (const a of accounts) {
+      if (!a.enabled) continue;
+      if (a.platform === 'youtube' && a.clientId && a.refreshToken) list.push(new YouTubeChat(a));
+      if (a.platform === 'facebook' && a.pageId && a.pageAccessToken) list.push(new FacebookChat(a, facebookLiveIds[a.id]));
+      if (a.platform === 'tiktok' && a.username) list.push(new TikTokChat(a));
+      if (a.platform === 'instagram') list.push(new InstagramChat(a));
+    }
 
     for (const c of list) {
-      this.connectors.set(c.platform, c);
+      this.connectors.set(c.accountId, c);
       c.on('message', (m: ChatMessage) => this.emit('message', m));
       c.on('status', (connected: boolean, message?: string) => {
-        const s = { platform: c.platform, connected, message };
-        this.statuses.set(c.platform, s);
+        const s: PlatformConnectionStatus = { platform: c.platform, accountId: c.accountId, accountLabel: c.accountLabel, connected, message };
+        this.statuses.set(c.accountId, s);
         this.emit('status', s);
       });
-      c.connect().catch((err: Error) => this.emit('status', { platform: c.platform, connected: false, message: err.message }));
+      c.connect().catch((err: Error) =>
+        this.emit('status', { platform: c.platform, accountId: c.accountId, accountLabel: c.accountLabel, connected: false, message: err.message }),
+      );
     }
   }
 
@@ -41,12 +46,12 @@ export class ChatAggregator extends EventEmitter {
     return [...this.statuses.values()];
   }
 
-  canReply(platform: Platform): boolean {
-    return this.connectors.get(platform)?.canReply ?? false;
+  canReply(accountId: string): boolean {
+    return this.connectors.get(accountId)?.canReply ?? false;
   }
 
   async reply(message: ChatMessage, text: string): Promise<boolean> {
-    const c = this.connectors.get(message.platform);
+    const c = this.connectors.get(message.accountId);
     if (!c) return false;
     return c.reply(message, text);
   }

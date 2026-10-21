@@ -40,7 +40,7 @@ export function ChatPanel({ settings, onOverlay, onComment, onToast }: Props) {
         setRows((r) => r.map((row) => (row.message.id === e.message.id ? { ...row, suggestion: e.suggestion, answered: { posted: e.posted, text: e.suggestion.answer } } : row)));
         if (e.overlay) onOverlay(e.message.text, e.suggestion.answer);
       }),
-      window.quirolive.chat.onStatus((s) => setConn((c) => ({ ...c, [s.platform]: s }))),
+      window.quirolive.chat.onStatus((s) => setConn((c) => ({ ...c, [s.accountId]: s }))),
     ];
     return () => offs.forEach((f) => f());
   }, [onOverlay, onComment, onToast]);
@@ -86,8 +86,8 @@ export function ChatPanel({ settings, onOverlay, onComment, onToast }: Props) {
       <div className="conn-list">
         {Object.values(conn).length === 0 && <span className="muted">Los chats se conectan al iniciar la transmisión.</span>}
         {Object.values(conn).map((s) => (
-          <span key={s.platform} className={s.connected ? 'ok' : 'bad'}>
-            {s.connected ? '●' : '○'} {PLATFORM_LABEL[s.platform]}: {s.message}
+          <span key={s.accountId} className={s.connected ? 'ok' : 'bad'}>
+            {s.connected ? '●' : '○'} {PLATFORM_LABEL[s.platform]} · {s.accountLabel}: {s.message}
           </span>
         ))}
       </div>
@@ -122,7 +122,8 @@ function MessageRow({ row, mode, onAnswer, onBlock }: { row: Row; mode: AppSetti
   return (
     <div className={`msg ${isQuestion ? 'question' : ''}`}>
       <div className="meta">
-        <span className={`plat ${row.message.platform}`}>{row.message.platform}</span>
+        <span className={`plat ${row.message.platform}`} title={row.message.accountLabel}>{row.message.platform}</span>
+        {row.message.accountId !== 'manual' && <span className="muted">{row.message.accountLabel}</span>}
         <strong>{row.message.author}</strong>
         <span>{new Date(row.message.timestamp).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</span>
         <span className="grow" />

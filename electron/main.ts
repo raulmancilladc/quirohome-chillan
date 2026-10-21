@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import path from 'node:path';
-import type { AppSettings, BlockedUser, ChatMessage, FaqEntry, StreamStartOptions, SuggestedAnswer } from '../shared/types';
+import type { AppSettings, BlockedUser, ChatAccount, ChatMessage, FaqEntry, StreamStartOptions, SuggestedAnswer } from '../shared/types';
 import { loadSettings, saveSettings } from './store';
 import { StreamEngine, resolveFfmpegPath } from './streaming/ffmpeg';
 import { ChatAggregator } from './chat/aggregator';
@@ -14,7 +14,8 @@ let settings: AppSettings = loadSettings();
 const engine = new StreamEngine(resolveFfmpegPath(), path.join(app.getPath('videos'), 'QuiroHome Live'));
 const chat = new ChatAggregator();
 const commentLog = new CommentLog();
-let facebookLiveId: string | undefined;
+/** Live videos creados por la app, por cuenta de Facebook. */
+const facebookLiveIds: Record<string, string> = {};
 
 function send(channel: string, payload: unknown) {
   win?.webContents.send(channel, payload);
@@ -152,7 +153,7 @@ async function publishAnswer(message: ChatMessage, suggestion: SuggestedAnswer) 
 }
 
 ipcMain.handle('chat:connect', async () => {
-  await chat.connectAll(settings.chat, facebookLiveId);
+  await chat.connectAll(settings.accounts, facebookLiveIds);
   return chat.getStatuses();
 });
 ipcMain.handle('chat:disconnect', async () => {
@@ -165,6 +166,8 @@ ipcMain.handle('chat:manualQuestion', async (_e, payload: { platform: ChatMessag
   const m: ChatMessage = {
     id: `manual-${Date.now()}`,
     platform: payload.platform,
+    accountId: 'manual',
+    accountLabel: 'Manual',
     author: 'Pregunta manual',
     text: payload.text,
     timestamp: Date.now(),
@@ -190,22 +193,30 @@ ipcMain.handle('chat:unblock', (_e, user: { platform: ChatMessage['platform']; a
   send('settings:changed', settings);
   return settings.blockedUsers;
 });
-ipcMain.handle('chat:canReply', (_e, platform: ChatMessage['platform']) => chat.canReply(platform));
+ipcMain.handle('chat:canReply', (_e, accountId: string) => chat.canReply(accountId));
 
 // ---- Integraciones de plataformas -----------------------------------------
-ipcMain.handle('youtube:login', async () => {
-  const refreshToken = await youtubeLogin(settings.chat.youtube);
-  settings.chat.youtube.refreshToken = refreshToken;
+function findAccount<T extends ChatAccount['platform']>(id: string, platform: T) {
+  const a = settings.accounts.find((x) => x.id === id && x.platform === platform);
+  if (!a) throw new Error('Cuenta no encontrada. Guarda la cuenta en Ajustes primero.');
+  return a as Extract<ChatAccount, { platform: T }>;
+}
+
+ipcMain.handle('youtube:login', async (_e, accountId: string) => {
+  const account = findAccount(accountId, 'youtube');
+  const refreshToken = await youtubeLogin(account);
+  settings.accounts = settings.accounts.map((a) => (a.id === accountId ? { ...a, refreshToken } : a));
   saveSettings(settings);
+  send('settings:changed', settings);
   return true;
 });
-ipcMain.handle('youtube:streamKey', async () => {
-  const api = new YouTubeApi(settings.chat.youtube);
+ipcMain.handle('youtube:streamKey', async (_e, accountId: string) => {
+  const api = new YouTubeApi(findAccount(accountId, 'youtube'));
   return api.getStreamKey();
 });
-ipcMain.handle('facebook:createLive', async (_e, title: string) => {
-  const live = await facebookCreateLive(settings.chat.facebook, title);
-  facebookLiveId = live.id;
+ipcMain.handle('facebook:createLive', async (_e, payload: { accountId: string; title: string }) => {
+  const live = await facebookCreateLive(findAccount(payload.accountId, 'facebook'), payload.title);
+  facebookLiveIds[payload.accountId] = live.id;
   return live;
 });
 ipcMain.handle('app:openExternal', (_e, url: string) => shell.openExternal(url));

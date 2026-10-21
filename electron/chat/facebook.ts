@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import type { ChatMessage } from '../../shared/types';
+import type { ChatMessage, FacebookAccount } from '../../shared/types';
 import type { ChatConnector } from './types';
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
@@ -37,14 +37,20 @@ export async function facebookCreateLive(creds: FacebookCredentials, title: stri
 export class FacebookChat extends EventEmitter implements ChatConnector {
   readonly platform = 'facebook' as const;
   readonly canReply = true;
+  readonly accountId: string;
+  readonly accountLabel: string;
+  private creds: FacebookCredentials;
   private liveVideoId: string | null = null;
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private seen = new Set<string>();
   private since = Math.floor(Date.now() / 1000);
 
-  constructor(private creds: FacebookCredentials, liveVideoId?: string) {
+  constructor(account: FacebookAccount, liveVideoId?: string) {
     super();
+    this.accountId = account.id;
+    this.accountLabel = account.label;
+    this.creds = account;
     this.liveVideoId = liveVideoId ?? null;
   }
 
@@ -86,8 +92,10 @@ export class FacebookChat extends EventEmitter implements ChatConnector {
           const ts = Date.parse(c.created_time);
           this.since = Math.max(this.since, Math.floor(ts / 1000) - 1);
           const m: ChatMessage = {
-            id: `fb-${c.id}`,
+            id: `fb-${this.accountId}-${c.id}`,
             platform: 'facebook',
+            accountId: this.accountId,
+            accountLabel: this.accountLabel,
             author: c.from?.name ?? 'Usuario de Facebook',
             text: c.message,
             timestamp: ts,
