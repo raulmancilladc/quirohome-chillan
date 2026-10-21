@@ -41,6 +41,16 @@ function createWindow() {
     void win.loadFile(path.join(__dirname, '../dist/index.html'));
   }
   win.on('closed', () => (win = null));
+  // Ventana de salida limpia (window.open desde la interfaz): misma sesión, sin menú.
+  win.webContents.setWindowOpenHandler(() => ({
+    action: 'allow',
+    overrideBrowserWindowOptions: {
+      title: 'QuiroHome Live · Salida',
+      backgroundColor: '#000000',
+      autoHideMenuBar: true,
+      webPreferences: { contextIsolation: true, nodeIntegration: false },
+    },
+  }));
 }
 
 // ---- Transmisión -----------------------------------------------------------

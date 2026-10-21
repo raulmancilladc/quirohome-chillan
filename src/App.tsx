@@ -5,6 +5,7 @@ import { Compositor, SIZES } from './lib/compositor';
 import { StreamRecorder } from './lib/recorder';
 import { AudioMonitor, type AudioReport } from './lib/audiomonitor';
 import { SourcesBar } from './components/SourcesBar';
+import { OutputWindow } from './lib/outputwindow';
 import { Preview } from './components/Preview';
 import { ChatPanel } from './components/ChatPanel';
 import { Destinations } from './components/Destinations';
@@ -34,6 +35,7 @@ export default function App() {
   const pipStream = useRef<MediaStream | null>(null);
   const micStream = useRef<MediaStream | null>(null);
   const monitor = useRef<AudioMonitor | null>(null);
+  const output = useRef(new OutputWindow());
 
   const showToast = useCallback((t: string) => {
     setToast(t);
@@ -342,6 +344,13 @@ export default function App() {
                 onMute={() => setMicMuted((m) => !m)}
                 onSwap={() => compositor.current?.swap()}
               />
+              <button
+                className="small"
+                title="Abre una ventana solo con el video, para capturarla desde TikTok LIVE Studio u otro programa"
+                onClick={() => compositor.current && output.current.open(compositor.current.canvas)}
+              >
+                🖥️ Ventana de salida
+              </button>
               <div className="grow" />
               {live ? (
                 <button className="danger golive" onClick={stopLive}>■ Finalizar</button>
