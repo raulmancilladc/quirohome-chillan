@@ -163,9 +163,7 @@
       "cuánto vale",
       "tarifa",
       "costo",
-      "cuesta",
-      "caro",
-      "barato"
+      "cuesta"
     ],
     "answer": "La sesión conmigo (Raúl Mancilla, en Providencia) es $40.000; con el resto del equipo, en ambas sedes, $33.000. Incluye evaluación y tratamiento en la misma hora. El masaje de 45 min es $30.000.",
     "enabled": true
@@ -247,7 +245,6 @@
     "id": "miedo",
     "question": "¿Duele? ¿Por qué suena ese clic?",
     "keywords": [
-      "duele",
       "dolor al ajustar",
       "miedo",
       "truenan",
@@ -264,7 +261,12 @@
       "ruido",
       "truena",
       "tronar",
-      "crack"
+      "crack",
+      "duele el ajuste",
+      "duele la quiropraxia",
+      "duele la sesion",
+      "duele la sesión",
+      "da miedo"
     ],
     "answer": "Ese ruido no es hueso, es gas que se libera en la articulación al ganar movilidad. No duele, y que suene o no suene no mide si quedó bien hecho. Todo parte con una evaluación conversada.",
     "enabled": true
@@ -717,6 +719,28 @@
       "masaje de espalda"
     ],
     "answer": "Sí: el masaje descontracturante o de relajación es de 45 minutos y cuesta $30.000 en las dos sedes. El de tren superior o inferior es de 25 minutos ($25.000 Providencia, $22.000 Chillán).",
+    "enabled": true
+  },
+  {
+    "id": "objecion-caro",
+    "question": "Es caro / no me alcanza",
+    "keywords": [
+      "caro",
+      "cara",
+      "es caro",
+      "muy caro",
+      "no me alcanza",
+      "no tengo plata",
+      "descuento",
+      "descuentos",
+      "promocion",
+      "promoción",
+      "oferta",
+      "mas barato",
+      "más barato",
+      "rebaja"
+    ],
+    "answer": "Te entiendo. La evaluación sirve justo para no gastar a ciegas: ahí sabes qué necesitas realmente, sin comprometerte a un plan de entrada. ¿La coordinamos por WhatsApp?",
     "enabled": true
   }
 ]
