@@ -1,0 +1,58 @@
+[
+  {
+    "id": "donde",
+    "question": "¿Dónde queda / dónde están ubicados?",
+    "keywords": ["donde queda", "donde estan", "donde están", "ubicacion", "ubicación", "direccion", "dirección", "donde atienden", "en que parte", "en qué parte", "donde es"],
+    "answer": "Estamos en {{address}}, Chillán. ¡Te esperamos!",
+    "enabled": true
+  },
+  {
+    "id": "llegar",
+    "question": "¿Cómo llego?",
+    "keywords": ["como llego", "cómo llego", "como llegar", "cómo llegar", "como se llega", "locomocion", "micro", "estacionamiento", "mapa"],
+    "answer": "{{howToGet}}",
+    "enabled": true
+  },
+  {
+    "id": "web",
+    "question": "¿Cuál es la página web?",
+    "keywords": ["pagina web", "página web", "sitio web", "web", "link", "pagina", "página", "instagram", "redes"],
+    "answer": "Nuestra página web es {{website}}",
+    "enabled": true
+  },
+  {
+    "id": "agendar",
+    "question": "¿Cómo agendo una hora?",
+    "keywords": ["agendar", "agendo", "hora", "cita", "reservar", "reserva", "turno", "como pido", "cómo pido"],
+    "answer": "Puedes agendar tu hora aquí: {{bookingUrl}} o escribiéndonos al {{phone}}.",
+    "enabled": true
+  },
+  {
+    "id": "horario",
+    "question": "¿Qué horario tienen?",
+    "keywords": ["horario", "a que hora", "a qué hora", "abren", "cierran", "atienden los", "fin de semana", "sabado", "sábado", "domingo"],
+    "answer": "Nuestro horario de atención es: {{hours}}",
+    "enabled": true
+  },
+  {
+    "id": "precio",
+    "question": "¿Cuánto cuesta / valor de la sesión?",
+    "keywords": ["precio", "cuanto cuesta", "cuánto cuesta", "cuanto sale", "cuánto sale", "valor", "cuanto vale", "cuánto vale", "tarifa", "costo"],
+    "answer": "Los valores dependen del tipo de sesión. Escríbenos al {{phone}} o revisa {{website}} y te orientamos sin compromiso.",
+    "enabled": true
+  },
+  {
+    "id": "servicios",
+    "question": "¿Qué tratan / qué diagnósticos atienden?",
+    "keywords": ["que tratan", "qué tratan", "tratan", "diagnostico", "diagnóstico", "hernia", "lumbar", "cervical", "ciatica", "ciática", "escoliosis", "dolor de espalda", "columna", "sirve para", "atienden"],
+    "answer": "Tratamos: {{services}}. Si tienes un diagnóstico específico, cuéntanos por interno y te orientamos.",
+    "enabled": true
+  },
+  {
+    "id": "telefono",
+    "question": "¿Cuál es el teléfono / WhatsApp?",
+    "keywords": ["telefono", "teléfono", "whatsapp", "wsp", "numero", "número", "contacto", "fono", "celular"],
+    "answer": "Puedes escribirnos al WhatsApp {{phone}}.",
+    "enabled": true
+  }
+]
