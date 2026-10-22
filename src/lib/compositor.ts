@@ -1,4 +1,4 @@
-import type { Orientation } from '../../shared/types';
+import type { Orientation, TitleOverlay } from '../../shared/types';
 
 export interface OverlayText {
   question: string;
@@ -15,6 +15,14 @@ export interface OverlayComment {
 
 const COMMENT_SECONDS = 18;
 const MAX_COMMENTS = 5;
+
+interface ActiveTitle {
+  title: TitleOverlay;
+  shownAt: number;
+  /** Momento en que empieza a salir (para la animación de salida). */
+  hideAt: number | null;
+}
+const TITLE_ANIM_MS = 450;
 
 export const SIZES: Record<Orientation, { width: number; height: number }> = {
   vertical: { width: 1080, height: 1920 },
@@ -54,6 +62,29 @@ export class Compositor {
   /** Rotación de la cámara principal en grados (0, 90, 180, 270). */
   rotation = 0;
   private comments: OverlayComment[] = [];
+  private titles: ActiveTitle[] = [];
+
+  /** Muestra un título; si ya está visible, lo oculta (funciona como interruptor). */
+  toggleTitle(title: TitleOverlay) {
+    const existing = this.titles.find((t) => t.title.id === title.id && t.hideAt === null);
+    if (existing) {
+      existing.hideAt = Date.now();
+      return false;
+    }
+    // Un solo título por posición: el nuevo reemplaza al que estaba.
+    for (const t of this.titles) if (t.title.position === title.position && t.hideAt === null) t.hideAt = Date.now();
+    this.titles.push({ title, shownAt: Date.now(), hideAt: null });
+    return true;
+  }
+
+  hideAllTitles() {
+    const now = Date.now();
+    for (const t of this.titles) if (t.hideAt === null) t.hideAt = now;
+  }
+
+  isTitleVisible(id: string): boolean {
+    return this.titles.some((t) => t.title.id === id && t.hideAt === null);
+  }
 
   addComment(c: OverlayComment) {
     this.comments = [...this.comments, c].slice(-MAX_COMMENTS);
@@ -186,6 +217,8 @@ export class Compositor {
       ctx.fillText(this.brandLabel, pad * 2, pad + fs * 0.95);
     }
 
+    this.drawTitles();
+
     let answerBoxTop = H;
     if (this.overlay && Date.now() < this.overlay.until) {
       answerBoxTop = this.drawOverlay(this.overlay);
@@ -198,6 +231,156 @@ export class Compositor {
       this.comments = this.comments.filter((c) => now - c.at < COMMENT_SECONDS * 1000);
       if (this.comments.length) this.drawComments(answerBoxTop);
     }
+  }
+
+  /** Títulos y textos con animación de entrada y salida. */
+  private drawTitles() {
+    const now = Date.now();
+    for (const t of this.titles) {
+      if (t.hideAt === null && t.title.seconds > 0 && now - t.shownAt > t.title.seconds * 1000) t.hideAt = now;
+    }
+    this.titles = this.titles.filter((t) => t.hideAt === null || now - t.hideAt < TITLE_ANIM_MS);
+    for (const t of this.titles) {
+      const inP = Math.min(1, (now - t.shownAt) / TITLE_ANIM_MS);
+      const outP = t.hideAt === null ? 0 : Math.min(1, (now - t.hideAt) / TITLE_ANIM_MS);
+      const p = easeOut(inP) * (1 - easeIn(outP));
+      this.drawTitle(t.title, p);
+    }
+  }
+
+  private drawTitle(t: TitleOverlay, p: number) {
+    const { ctx, canvas } = this;
+    const W = canvas.width;
+    const H = canvas.height;
+    const vertical = this.orientation === 'vertical';
+    const m = Math.round(W * 0.05);
+    const font = `'${t.font}', Poppins, sans-serif`;
+    const maxWidth = W - m * 2;
+    const yAnchor = t.position === 'arriba' ? m * 2.6 : t.position === 'centro' ? H * 0.42 : H - m * (vertical ? 6 : 2.2);
+    const slide = (1 - p) * m * 1.5;
+
+    ctx.save();
+    ctx.globalAlpha = p;
+    ctx.textBaseline = 'alphabetic';
+
+    if (t.style === 'titulo') {
+      const fs = Math.round(W * (vertical ? 0.12 : 0.085));
+      ctx.font = `800 ${fs}px ${font}`;
+      const lines = wrap(ctx, t.text, maxWidth).slice(0, 3);
+      ctx.textAlign = 'center';
+      let y = yAnchor + (t.position === 'centro' ? -((lines.length - 1) * fs * 0.55) : 0) + slide;
+      for (const l of lines) {
+        ctx.lineWidth = fs * 0.12;
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+        ctx.lineJoin = 'round';
+        ctx.strokeText(l, W / 2, y);
+        ctx.fillStyle = t.color;
+        ctx.fillText(l, W / 2, y);
+        y += fs * 1.1;
+      }
+      if (t.subtext) {
+        ctx.font = `600 ${Math.round(fs * 0.38)}px ${font}`;
+        ctx.fillStyle = t.accent;
+        ctx.fillText(t.subtext, W / 2, y - fs * 0.5);
+      }
+    } else if (t.style === 'tercio') {
+      // Tercio inferior: barra de color + nombre y cargo.
+      const fs = Math.round(W * (vertical ? 0.055 : 0.04));
+      const fs2 = Math.round(fs * 0.6);
+      ctx.font = `800 ${fs}px ${font}`;
+      const w1 = ctx.measureText(t.text).width;
+      ctx.font = `500 ${fs2}px ${font}`;
+      const w2 = t.subtext ? ctx.measureText(t.subtext).width : 0;
+      const boxW = Math.min(maxWidth, Math.max(w1, w2) + fs * 1.6);
+      const boxH = fs * 1.5 + (t.subtext ? fs2 * 1.6 : 0);
+      const x = m - slide;
+      const y = yAnchor - boxH;
+      ctx.fillStyle = 'rgba(10,14,24,0.78)';
+      roundRect(ctx, x, y, boxW, boxH, fs * 0.25);
+      ctx.fill();
+      ctx.fillStyle = t.accent;
+      ctx.fillRect(x, y, fs * 0.22, boxH);
+      ctx.textAlign = 'left';
+      ctx.fillStyle = t.color;
+      ctx.font = `800 ${fs}px ${font}`;
+      ctx.fillText(t.text, x + fs * 0.7, y + fs * 1.1);
+      if (t.subtext) {
+        ctx.font = `500 ${fs2}px ${font}`;
+        ctx.fillStyle = t.accent;
+        ctx.fillText(t.subtext, x + fs * 0.7, y + fs * 1.1 + fs2 * 1.4);
+      }
+    } else if (t.style === 'banda') {
+      // Banda de borde a borde.
+      const fs = Math.round(W * (vertical ? 0.06 : 0.045));
+      const fs2 = Math.round(fs * 0.62);
+      const boxH = fs * 1.6 + (t.subtext ? fs2 * 1.5 : 0);
+      const y = (t.position === 'arriba' ? m * 1.2 : t.position === 'centro' ? H / 2 - boxH / 2 : yAnchor - boxH) - slide;
+      ctx.fillStyle = t.accent;
+      ctx.fillRect(0, y, W, boxH);
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.fillRect(0, y + boxH - fs * 0.12, W, fs * 0.12);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = t.color;
+      ctx.font = `800 ${fs}px ${font}`;
+      ctx.fillText(t.text, W / 2, y + fs * 1.15);
+      if (t.subtext) {
+        ctx.font = `600 ${fs2}px ${font}`;
+        ctx.fillText(t.subtext, W / 2, y + fs * 1.15 + fs2 * 1.4);
+      }
+    } else if (t.style === 'burbuja') {
+      // Burbuja redondeada centrada, estilo sticker.
+      const fs = Math.round(W * (vertical ? 0.075 : 0.055));
+      const fs2 = Math.round(fs * 0.5);
+      ctx.font = `700 ${fs}px ${font}`;
+      const lines = wrap(ctx, t.text, maxWidth - fs * 2).slice(0, 2);
+      const w = Math.min(maxWidth, Math.max(...lines.map((l) => ctx.measureText(l).width), t.subtext ? ctx.measureText(t.subtext).width * 0.6 : 0) + fs * 1.6);
+      const h = lines.length * fs * 1.15 + fs * 0.9 + (t.subtext ? fs2 * 1.6 : 0);
+      const x = W / 2 - w / 2;
+      const y = (t.position === 'centro' ? H / 2 - h / 2 : t.position === 'arriba' ? m * 2 : yAnchor - h) - slide;
+      const scale = 0.85 + 0.15 * p;
+      ctx.translate(W / 2, y + h / 2);
+      ctx.scale(scale, scale);
+      ctx.translate(-W / 2, -(y + h / 2));
+      ctx.fillStyle = t.accent;
+      ctx.shadowColor = 'rgba(0,0,0,0.35)';
+      ctx.shadowBlur = fs * 0.6;
+      ctx.shadowOffsetY = fs * 0.15;
+      roundRect(ctx, x, y, w, h, h / 2.2);
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = t.color;
+      ctx.font = `700 ${fs}px ${font}`;
+      let cy = y + fs * 1.2;
+      for (const l of lines) {
+        ctx.fillText(l, W / 2, cy);
+        cy += fs * 1.15;
+      }
+      if (t.subtext) {
+        ctx.font = `600 ${fs2}px ${font}`;
+        ctx.globalAlpha = p * 0.8;
+        ctx.fillText(t.subtext, W / 2, cy - fs * 0.15);
+      }
+    } else {
+      // Cinta: texto que se desplaza (ticker) en una franja.
+      const fs = Math.round(W * (vertical ? 0.045 : 0.034));
+      const boxH = fs * 1.8;
+      const y = (t.position === 'arriba' ? m : t.position === 'centro' ? H / 2 - boxH / 2 : H - boxH - m * (vertical ? 5 : 1.5));
+      ctx.fillStyle = 'rgba(10,14,24,0.82)';
+      ctx.fillRect(0, y, W, boxH);
+      ctx.fillStyle = t.accent;
+      ctx.fillRect(0, y, W, fs * 0.14);
+      const label = t.text ? `${t.text}  ·  ` : '';
+      const msg = `${label}${t.subtext}     `;
+      ctx.font = `600 ${fs}px ${font}`;
+      const tw = ctx.measureText(msg).width;
+      const speed = W * 0.12; // px por segundo
+      const offset = ((Date.now() / 1000) * speed) % tw;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = t.color;
+      for (let x = -offset; x < W; x += tw) ctx.fillText(msg, x, y + fs * 1.25);
+    }
+    ctx.restore();
   }
 
   /** Comentarios recientes, estilo TikTok, sobre la zona inferior izquierda. */
@@ -303,6 +486,13 @@ export class Compositor {
     }
     return y;
   }
+}
+
+function easeOut(p: number) {
+  return 1 - Math.pow(1 - p, 3);
+}
+function easeIn(p: number) {
+  return p * p * p;
 }
 
 function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {

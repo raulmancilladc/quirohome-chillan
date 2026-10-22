@@ -151,9 +151,44 @@ export interface SourceSettings {
   background: 'blur' | 'dark' | 'brand';
 }
 
+export type TitleStyle = 'titulo' | 'tercio' | 'banda' | 'burbuja' | 'cinta';
+export type TitlePosition = 'arriba' | 'centro' | 'abajo';
+export type TitleFont = 'Poppins' | 'Bebas Neue' | 'Playfair Display' | 'Montserrat' | 'Pacifico' | 'Oswald' | 'Lobster' | 'Anton' | 'Caveat' | 'Righteous';
+
+/** Texto que se muestra sobre el video (título, nombre, aviso, etc.). */
+export interface TitleOverlay {
+  id: string;
+  text: string;
+  subtext: string;
+  style: TitleStyle;
+  font: TitleFont;
+  position: TitlePosition;
+  color: string;
+  accent: string;
+  /** Segundos en pantalla; 0 = hasta que lo ocultes. */
+  seconds: number;
+  /** Tecla rápida: Shift + número (1-9). */
+  hotkey?: number;
+}
+
+export interface SoundEffect {
+  id: string;
+  name: string;
+  /** 'builtin-...' para los incluidos; ruta de archivo para los propios. */
+  source: string;
+  /** Tecla rápida: una letra. */
+  hotkey?: string;
+  emoji: string;
+}
+
 export interface AppSettings {
   /** Versión de los datos por defecto cargados (negocio y FAQ). */
   defaultsVersion?: number;
+  titles: TitleOverlay[];
+  sounds: SoundEffect[];
+  sfxVolume: number;
+  /** Escuchar los efectos también por los parlantes (cuidado con el acople). */
+  sfxMonitor: boolean;
   /** Cámaras, micrófono y encuadre elegidos la última vez. */
   sources?: SourceSettings;
   orientation: Orientation;

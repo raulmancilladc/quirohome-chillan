@@ -33,6 +33,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // El mezclador de audio arranca al abrir la app, sin esperar un clic.
+      autoplayPolicy: 'no-user-gesture-required',
     },
   });
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -133,6 +135,9 @@ function learn(message: ChatMessage, suggestion: SuggestedAnswer) {
   send('settings:changed', settings);
 }
 
+/** Última respuesta automática por persona, para no contestar cada "hola" de la misma persona. */
+const lastAutoReply = new Map<string, number>();
+
 chat.on('message', async (m: ChatMessage) => {
   if (isBlocked(m)) return;
   send('chat:message', m);
@@ -140,6 +145,14 @@ chat.on('message', async (m: ChatMessage) => {
   if (settings.autoAnswer.mode === 'off') return;
   const suggestion = await suggestAnswer(m, engineOptions());
   if (!suggestion) return;
+  if (settings.autoAnswer.mode === 'auto') {
+    const key = `${m.platform}:${normalize(m.author)}`;
+    const isSocial = suggestion.faqId?.startsWith('social-');
+    const last = lastAutoReply.get(key) ?? 0;
+    // Saludos y gracias: como mucho una respuesta por persona cada 10 minutos.
+    if (isSocial && Date.now() - last < 10 * 60_000) return;
+    lastAutoReply.set(key, Date.now());
+  }
   if (settings.autoAnswer.mode === 'auto') {
     await publishAnswer(m, suggestion);
   } else {
@@ -231,6 +244,21 @@ ipcMain.handle('facebook:createLive', async (_e, payload: { accountId: string; t
 });
 ipcMain.handle('app:openExternal', (_e, url: string) => shell.openExternal(url));
 ipcMain.handle('app:ffmpegPath', () => resolveFfmpegPath());
+
+/** Elige un archivo de audio propio para usarlo como efecto. */
+ipcMain.handle('sounds:pick', async () => {
+  const r = await dialog.showOpenDialog({
+    title: 'Elegir sonido',
+    filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac'] }],
+    properties: ['openFile', 'multiSelections'],
+  });
+  return r.canceled ? [] : r.filePaths;
+});
+ipcMain.handle('sounds:read', async (_e, filePath: string) => {
+  const fs = await import('node:fs/promises');
+  const data = await fs.readFile(filePath);
+  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+});
 
 /** Silencia o reactiva los parlantes del computador (para cortar acoples). */
 ipcMain.handle('app:setSystemMute', async (_e, muted: boolean) => {

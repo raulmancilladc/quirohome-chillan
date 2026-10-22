@@ -52,6 +52,10 @@ const api = {
   facebook: {
     createLive: (accountId: string, title: string): Promise<{ id: string; url: string; key: string }> => ipcRenderer.invoke('facebook:createLive', { accountId, title }),
   },
+  sounds: {
+    pick: (): Promise<string[]> => ipcRenderer.invoke('sounds:pick'),
+    read: (filePath: string): Promise<ArrayBuffer> => ipcRenderer.invoke('sounds:read', filePath),
+  },
   app: {
     openExternal: (url: string): Promise<void> => ipcRenderer.invoke('app:openExternal', url),
     ffmpegPath: (): Promise<string> => ipcRenderer.invoke('app:ffmpegPath'),

@@ -1,4 +1,4 @@
-import type { AudioReport } from '../lib/audiomonitor';
+import type { AudioReport } from '../lib/audioengine';
 
 interface Props {
   devices: { cams: MediaDeviceInfo[]; mics: MediaDeviceInfo[] };

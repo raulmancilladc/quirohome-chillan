@@ -34,10 +34,7 @@
       "metro",
       "sede en santiago",
       "sede de santiago",
-      "sede santiago",
-      "en santiago",
-      "en providencia",
-      "de providencia"
+      "sede santiago"
     ],
     "answer": "En Santiago estamos en Pérez Valenzuela 1276, Providencia, a una cuadra del metro Manuel Montt (línea 1). WhatsApp: +56 9 7630 3081.",
     "enabled": true
@@ -53,9 +50,7 @@
       "el roble",
       "sede en chillan",
       "sede de chillan",
-      "sede chillan",
-      "en chillan",
-      "de chillan"
+      "sede chillan"
     ],
     "answer": "En Chillán estamos en El Roble 224, a pasos de Avenida O'Higgins, con estacionamiento en el lugar. WhatsApp: +56 9 8630 2937.",
     "enabled": true
@@ -188,7 +183,7 @@
       "sesion contigo",
       "hora contigo"
     ],
-    "answer": "La sesión conmigo (Raúl Mancilla) es en la sede de Providencia y tiene un valor de $40.000. Se reserva en quirohome.cl/agenda-tu-cita o al WhatsApp +56 9 7630 3081.",
+    "answer": "Sí, yo atiendo en la sede de Providencia. La sesión conmigo es $40.000 e incluye evaluación y tratamiento en la misma hora. Reserva en quirohome.cl/agenda-tu-cita o al WhatsApp +56 9 7630 3081.",
     "enabled": true
   },
   {
@@ -451,7 +446,12 @@
       "protesis",
       "prótesis",
       "me pueden atender",
-      "puedo atenderme"
+      "puedo atenderme",
+      "me operaron",
+      "operacion",
+      "operación",
+      "postoperatorio",
+      "post operatorio"
     ],
     "answer": "Se puede, pero cambia la técnica, y eso se define en la evaluación, no por mensaje. Si hay fractura, esguince o accidente reciente, primero hay que pasar por el médico.",
     "enabled": true

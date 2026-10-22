@@ -17,6 +17,13 @@ Pensada para ser simple: elegir **vertical u horizontal**, activar las plataform
   - Además se **publica en el chat** donde la API lo permite (YouTube, Facebook; TikTok opcional con cookie de sesión).
   - Opcional: **IA (Claude)** responde preguntas que no están en la lista usando solo los datos del negocio y sin dar indicaciones médicas.
 - **Pregunta manual**: para Instagram (que no entrega los comentarios del live por API) escribes la pregunta que ves en el celular y la respuesta sale en pantalla al instante.
+- **Títulos y textos**: cinco estilos (título grande, nombre y cargo, banda, burbuja, cinta en movimiento), diez tipografías, colores y animación. Se muestran con un clic o con Shift + número.
+- **Sonidos**: ocho efectos incluidos y los tuyos (mp3, wav…), con tecla rápida. Van mezclados a la transmisión y a la grabación.
+- **Cámaras**: botones numerados (teclas 1-9) para cambiar en vivo, segunda cámara en recuadro, encuadre llenar/completo, zoom y rotación 90° (para montar la Osmo en vertical).
+- **Audio**: medidor del micrófono, silencio, detector de acople con aviso de qué apagar y botón para silenciar los parlantes del Mac.
+- **Varias cuentas por plataforma**, grabación en alta calidad con los comentarios sobre el video y archivo .srt con cada comentario y su segundo.
+- **Codificador de hardware** (VideoToolbox en Mac, NVENC/QuickSync en Windows) y modo Ligero para equipos cargados.
+- **Instaladores** para macOS y Windows generados automáticamente (pestaña Releases del repositorio).
 
 ## Límites honestos por plataforma
 
@@ -33,7 +40,11 @@ Pensada para ser simple: elegir **vertical u horizontal**, activar las plataform
 - FFmpeg: se instala solo con `npm install` (paquete `ffmpeg-static`). Si falla, instala FFmpeg en el sistema y la app lo detecta.
 - Windows, macOS o Linux.
 
-## Cómo correrla
+## Instalar
+
+Descarga el instalador desde la sección **Releases** del repositorio: `.dmg` para macOS (arm64 para chip Apple, x64 para Intel) o `.exe` para Windows. En macOS, la primera vez: clic derecho sobre la app → Abrir.
+
+## Cómo correrla en modo desarrollo
 
 ```bash
 npm install

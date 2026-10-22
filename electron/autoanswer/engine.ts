@@ -56,6 +56,9 @@ export function matchFaq(text: string, faq: FaqEntry[]): FaqMatch | null {
         score += 1; // palabra contenida (ej. "agend" en "agendar")
       }
     }
+    // Las respuestas aprendidas en vivo solo ganan con una coincidencia fuerte (frase completa),
+    // para que una palabra suelta no secuestre respuestas que ya funcionaban.
+    if (entry.id.startsWith('aprendida-') && score < 3) continue;
     // En empate gana la entrada más abajo en la lista: las específicas van después de las generales.
     if (score > 0 && (!best || score >= best.score)) best = { entry, score };
   }
@@ -78,7 +81,7 @@ type SocialKind = 'saludo' | 'gracias' | 'testimonio' | 'despedida';
 const SOCIAL: Record<SocialKind, { keywords: string[]; replies: string[] }> = {
   saludo: {
     keywords: ['hola', 'holaa', 'holaaa', 'buenas', 'buenos dias', 'buenas tardes', 'buenas noches', 'saludos', 'presente', 'aqui estoy', 'llegue', 'llegué', 'que tal', 'qué tal'],
-    replies: ['¡Hola! Bienvenido/a 🙌 ¿De dónde nos ves?', '¡Hola! Qué bueno que llegaste 🙌', '¡Buenas! Cuéntame desde dónde nos escribes 👋', '¡Hola! Pregunta lo que quieras, acá estoy 🙌'],
+    replies: ['¡Hola! Bienvenido/a 🙌', '¡Hola! Qué bueno que llegaste 🙌', '¡Buenas! Pregunta lo que quieras 👋', '¡Hola! Acá estoy, dime 🙌'],
   },
   gracias: {
     keywords: ['gracias', 'muchas gracias', 'se agradece', 'mil gracias', 'graciasss', 'grax'],
@@ -86,7 +89,7 @@ const SOCIAL: Record<SocialKind, { keywords: string[]; replies: string[] }> = {
   },
   testimonio: {
     keywords: ['me sirvio', 'me sirvió', 'me ayudo', 'me ayudó', 'quede bien', 'quedé bien', 'excelente', 'lo recomiendo', 'los recomiendo', 'me atendi', 'me atendí', 'fui y', 'muy bueno', 'buenisimo', 'buenísimo', 'lo mejor', 'crack', 'genio', 'maestro', 'el mejor', 'la mejor'],
-    replies: ['¡Gracias por contarlo! 🙌 Nos alegra un montón 😊', 'Qué bueno leer esto 🙌 Gracias por la confianza ❤️', '¡Muchas gracias! 😊 Se agradece que lo compartas 🙌', 'Gracias por la recomendación 🙌 Un abrazo grande ❤️'],
+    replies: ['¡Muchas gracias! 🙌 Se agradece', 'Gracias por la buena onda 😊 Un abrazo', 'Qué bueno leer esto 🙌 Gracias por la confianza', '¡Gracias! Nos alegra un montón 🤍'],
   },
   despedida: {
     keywords: ['chao', 'chau', 'adios', 'adiós', 'me voy', 'nos vemos', 'hasta luego', 'bye'],
@@ -134,6 +137,16 @@ export function keywordsFromQuestion(question: string): string[] {
  */
 export async function suggestAnswer(msg: ChatMessage, opts: EngineOptions): Promise<SuggestedAnswer | null> {
   const match = matchFaq(msg.text, opts.faq);
+  const social = matchSocial(msg.text);
+  const isQuestion = looksLikeQuestion(msg.text);
+
+  // "Hola desde Chillán" o "buenas noches doctor" son saludos, no preguntas:
+  // si el saludo es claro y la coincidencia de FAQ es débil, gana el saludo.
+  if (social && !isQuestion && (!match || match.score < 3)) {
+    if (!opts.answerEverything) return null;
+    return { messageId: msg.id, question: msg.text, answer: social.reply, source: 'faq', confidence: 0.5, faqId: `social-${social.kind}` };
+  }
+
   if (match && match.score >= 2) {
     return {
       messageId: msg.id,
@@ -145,14 +158,9 @@ export async function suggestAnswer(msg: ChatMessage, opts: EngineOptions): Prom
     };
   }
 
-  const isQuestion = looksLikeQuestion(msg.text);
-
-  // Saludos, gracias, testimonios: respuesta corta sin usar la IA.
-  if (opts.answerEverything && !isQuestion) {
-    const social = matchSocial(msg.text);
-    if (social) {
-      return { messageId: msg.id, question: msg.text, answer: social.reply, source: 'faq', confidence: 0.5, faqId: `social-${social.kind}` };
-    }
+  // Saludos, gracias, testimonios sin FAQ: respuesta corta sin usar la IA.
+  if (opts.answerEverything && social) {
+    return { messageId: msg.id, question: msg.text, answer: social.reply, source: 'faq', confidence: 0.5, faqId: `social-${social.kind}` };
   }
 
   if (opts.useAi && opts.anthropicApiKey && (isQuestion || opts.answerEverything)) {

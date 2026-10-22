@@ -3,7 +3,8 @@ import type { AppSettings, ChatMessage, Orientation, StreamStatus, SuggestedAnsw
 import type { AnsweredEvent } from '../electron/preload';
 import { Compositor, SIZES, SIZES_LIGHT } from './lib/compositor';
 import { StreamRecorder } from './lib/recorder';
-import { AudioMonitor, type AudioReport } from './lib/audiomonitor';
+import { AudioEngine, type AudioReport } from './lib/audioengine';
+import { TitlesPanel } from './components/TitlesPanel';
 import { SourcesBar } from './components/SourcesBar';
 import { OutputWindow } from './lib/outputwindow';
 import { Preview } from './components/Preview';
@@ -12,7 +13,7 @@ import { Destinations } from './components/Destinations';
 import { Settings } from './components/Settings';
 import { FaqEditor } from './components/FaqEditor';
 
-type Tab = 'live' | 'destinos' | 'respuestas' | 'ajustes';
+type Tab = 'live' | 'titulos' | 'destinos' | 'respuestas' | 'ajustes';
 
 export default function App() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -57,8 +58,8 @@ export default function App() {
   const recorder = useRef<StreamRecorder | null>(null);
   const camStream = useRef<MediaStream | null>(null);
   const pipStream = useRef<MediaStream | null>(null);
-  const micStream = useRef<MediaStream | null>(null);
-  const monitor = useRef<AudioMonitor | null>(null);
+  const audioEngine = useRef<AudioEngine | null>(null);
+  const getAudio = () => (audioEngine.current ??= new AudioEngine());
   const output = useRef(new OutputWindow());
 
   const showToast = useCallback((t: string) => {
@@ -92,7 +93,7 @@ export default function App() {
     const off = window.quirolive.stream.onStatus((s) => {
       setStatus(s);
       if (s.state === 'error' && s.message) showToast(s.message);
-      if (s.state === 'idle' && recorder.current) {
+      if ((s.state === 'idle' || s.state === 'error') && recorder.current) {
         recorder.current.stop();
         recorder.current = null;
       }
@@ -201,7 +202,7 @@ export default function App() {
     };
   }, [pipCamId, showToast]);
 
-  // Micrófono: con medidor de nivel y detector de acople.
+  // Micrófono: entra al mezclador (se puede cambiar en vivo), con medidor y detector de acople.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -214,15 +215,10 @@ export default function App() {
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
-        micStream.current?.getTracks().forEach((t) => t.stop());
-        micStream.current = stream;
-        const track = stream.getAudioTracks()[0];
-        track.enabled = !micMuted;
-        monitor.current?.stop();
-        monitor.current = new AudioMonitor();
-        monitor.current.start(track, setAudio);
-        // Si ya estamos en vivo, cambiamos la pista de audio sin cortar la transmisión.
-        recorder.current?.replaceAudio(track);
+        const engine = getAudio();
+        engine.setMic(stream);
+        engine.setMuted(micMuted);
+        engine.startMonitor(setAudio);
         await refreshDevices();
       } catch (err) {
         showToast(`No se pudo abrir el micrófono: ${(err as Error).message}`);
@@ -235,9 +231,33 @@ export default function App() {
   }, [micId, showToast, refreshDevices]);
 
   useEffect(() => {
-    const track = micStream.current?.getAudioTracks()[0];
-    if (track) track.enabled = !micMuted;
+    audioEngine.current?.setMuted(micMuted);
   }, [micMuted]);
+
+  // Efectos de sonido: cargar los incluidos y los archivos propios; volumen y monitoreo.
+  useEffect(() => {
+    if (!settings) return;
+    const engine = getAudio();
+    engine.setSfx(settings.sfxVolume, settings.sfxMonitor);
+    void engine.loadBuiltins();
+    for (const snd of settings.sounds) {
+      if (snd.source.startsWith('builtin-') || engine.hasSound(snd.id)) continue;
+      window.quirolive.sounds.read(snd.source).then((buf) => engine.loadSound(snd.id, buf)).catch(() => showToast(`No se pudo cargar el sonido ${snd.name}`));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings?.sounds, settings?.sfxVolume, settings?.sfxMonitor]);
+
+  const playSound = useCallback((id: string) => {
+    const engine = getAudio();
+    engine.play(id.startsWith('builtin-') ? id : id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const toggleTitle = useCallback((id: string) => {
+    const t = settings?.titles.find((x) => x.id === id);
+    if (!t || !compositor.current) return false;
+    return compositor.current.toggleTitle(t);
+  }, [settings?.titles]);
 
   // Teclas 1, 2, 3… cambian la cámara principal al instante (salvo si estás escribiendo).
   useEffect(() => {
@@ -245,6 +265,28 @@ export default function App() {
       const target = e.target as HTMLElement | null;
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'Escape') {
+        compositor.current?.hideAllTitles();
+        audioEngine.current?.stopAll();
+        return;
+      }
+      // Shift + número: mostrar u ocultar un título.
+      if (e.shiftKey && e.code.startsWith('Digit')) {
+        const n = Number(e.code.slice(5));
+        const t = settings?.titles.find((x) => x.hotkey === n);
+        if (t) {
+          e.preventDefault();
+          toggleTitle(t.id);
+        }
+        return;
+      }
+      // Letra: sonido.
+      const snd = settings?.sounds.find((x) => x.hotkey && x.hotkey.toLowerCase() === e.key.toLowerCase());
+      if (snd && !e.shiftKey) {
+        e.preventDefault();
+        playSound(snd.id);
+        return;
+      }
       const n = Number(e.key);
       if (!Number.isInteger(n) || n < 1 || n > 9) return;
       const cam = devices.cams[n - 1];
@@ -255,7 +297,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [devices.cams, showToast]);
+  }, [devices.cams, showToast, settings?.titles, settings?.sounds, toggleTitle, playSound]);
 
   const toggleMacMute = async () => {
     const next = !macMuted;
@@ -299,7 +341,7 @@ export default function App() {
         hardwareEncoder: settings.hardwareEncoder,
       });
       const rec = new StreamRecorder();
-      rec.start(compositor.current.canvas, micStream.current?.getAudioTracks()[0] ?? null, fps, videoBitrateKbps);
+      rec.start(compositor.current.canvas, getAudio().outputTrack, fps, videoBitrateKbps);
       recorder.current = rec;
       await window.quirolive.chat.connect();
     } catch (err) {
@@ -336,9 +378,9 @@ export default function App() {
       <div className="topbar">
         <h1>🎥 QuiroHome Live</h1>
         <div className="tabs">
-          {(['live', 'destinos', 'respuestas', 'ajustes'] as Tab[]).map((t) => (
+          {(['live', 'titulos', 'destinos', 'respuestas', 'ajustes'] as Tab[]).map((t) => (
             <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
-              {{ live: 'En vivo', destinos: 'Plataformas', respuestas: 'Respuestas automáticas', ajustes: 'Ajustes' }[t]}
+              {{ live: 'En vivo', titulos: 'Títulos y sonidos', destinos: 'Plataformas', respuestas: 'Respuestas automáticas', ajustes: 'Ajustes' }[t]}
             </button>
           ))}
         </div>
@@ -430,6 +472,21 @@ export default function App() {
                 </button>
               )}
             </div>
+            <div className="quick-bar">
+              <span className="muted small-text">Títulos:</span>
+              {settings.titles.slice(0, 6).map((t) => (
+                <button key={t.id} className="small" onClick={() => toggleTitle(t.id)} title={t.hotkey ? `Shift+${t.hotkey}` : ''}>
+                  {t.hotkey ? `⇧${t.hotkey} ` : ''}{t.text}
+                </button>
+              ))}
+              <span className="muted small-text" style={{ marginLeft: 8 }}>Sonidos:</span>
+              {settings.sounds.slice(0, 8).map((snd) => (
+                <button key={snd.id} className="small" onClick={() => playSound(snd.id)} title={snd.hotkey ? `Tecla ${snd.hotkey.toUpperCase()}` : ''}>
+                  {snd.emoji} {snd.name}
+                </button>
+              ))}
+              <button className="small ghost" title="Esc: ocultar títulos y cortar sonidos" onClick={() => { compositor.current?.hideAllTitles(); audioEngine.current?.stopAll(); }}>✕</button>
+            </div>
             <div className="dest-chips">
               {settings.targets.map((t) => (
                 <span
@@ -449,6 +506,17 @@ export default function App() {
         </div>
       )}
 
+      {tab === 'titulos' && (
+        <TitlesPanel
+          settings={settings}
+          onSave={save}
+          onToast={showToast}
+          onToggleTitle={toggleTitle}
+          onPlaySound={playSound}
+          isVisible={(id) => compositor.current?.isTitleVisible(id) ?? false}
+          onHideAll={() => compositor.current?.hideAllTitles()}
+        />
+      )}
       {tab === 'destinos' && <Destinations settings={settings} onSave={save} onToast={showToast} />}
       {tab === 'respuestas' && <FaqEditor settings={settings} onSave={save} />}
       {tab === 'ajustes' && <Settings settings={settings} onSave={save} onToast={showToast} />}

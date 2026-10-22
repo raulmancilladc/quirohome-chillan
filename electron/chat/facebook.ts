@@ -44,7 +44,8 @@ export class FacebookChat extends EventEmitter implements ChatConnector {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private seen = new Set<string>();
-  private since = Math.floor(Date.now() / 1000);
+  /** Solo comentarios posteriores a la conexión (en ms). */
+  private since = Date.now() - 30_000;
 
   constructor(account: FacebookAccount, liveVideoId?: string) {
     super();
@@ -84,13 +85,13 @@ export class FacebookChat extends EventEmitter implements ChatConnector {
       if (this.liveVideoId) {
         const data = await graph<{ data: Array<{ id: string; message: string; created_time: string; from?: { name: string } }> }>(
           `${this.liveVideoId}/comments`, this.creds.pageAccessToken,
-          { fields: 'id,message,created_time,from', live_filter: 'no_filter', order: 'chronological', since: String(this.since), limit: '100' },
+          { fields: 'id,message,created_time,from', live_filter: 'no_filter', order: 'reverse_chronological', limit: '50' },
         );
-        for (const c of data.data ?? []) {
+        for (const c of [...(data.data ?? [])].reverse()) {
           if (!c.message || this.seen.has(c.id)) continue;
-          this.seen.add(c.id);
           const ts = Date.parse(c.created_time);
-          this.since = Math.max(this.since, Math.floor(ts / 1000) - 1);
+          if (ts < this.since) continue;
+          this.seen.add(c.id);
           const m: ChatMessage = {
             id: `fb-${this.accountId}-${c.id}`,
             platform: 'facebook',
