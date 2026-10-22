@@ -19,14 +19,14 @@ export function fillTemplate(template: string, business: BusinessInfo): string {
   });
 }
 
-const QUESTION_HINTS = ['donde', 'como ', 'cual', 'cuanto', 'quien', 'cuando', 'tienen', 'atienden', 'puedo', 'se puede', 'sirve para', 'precio', 'valor', 'horario', 'direccion'];
+const QUESTION_HINTS = ['donde', 'como', 'cual', 'cuales', 'cuanto', 'cuanta', 'cuantos', 'quien', 'cuando', 'tienen', 'atienden', 'puedo', 'se puede', 'sirve para', 'precio', 'valor', 'horario', 'direccion'];
 
 /** ¿Parece una pregunta o una consulta que merece respuesta? */
 export function looksLikeQuestion(text: string): boolean {
   const n = normalize(text);
   if (text.includes('?') || text.includes('¿')) return true;
   const padded = ` ${n} `;
-  return QUESTION_HINTS.some((h) => padded.includes(h.endsWith(' ') ? ` ${h}` : ` ${h}`));
+  return QUESTION_HINTS.some((h) => padded.includes(` ${h} `));
 }
 
 export interface FaqMatch {

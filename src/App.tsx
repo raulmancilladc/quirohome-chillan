@@ -61,6 +61,8 @@ export default function App() {
   const audioEngine = useRef<AudioEngine | null>(null);
   const getAudio = () => (audioEngine.current ??= new AudioEngine());
   const output = useRef(new OutputWindow());
+  /** true desde que se pide iniciar hasta que FFmpeg vuelve a idle (evita cambiar el lienzo en vivo). */
+  const liveRef = useRef(false);
 
   const showToast = useCallback((t: string) => {
     setToast(t);
@@ -90,17 +92,22 @@ export default function App() {
       c.start();
     });
     const offChanged = window.quirolive.settings.onChanged((s) => setSettings(s));
+    const offTarget = window.quirolive.stream.onTargetFailed((name) => showToast(`⚠️ ${name} no recibe la transmisión: revisa la clave en Plataformas.`));
     const off = window.quirolive.stream.onStatus((s) => {
       setStatus(s);
       if (s.state === 'error' && s.message) showToast(s.message);
-      if ((s.state === 'idle' || s.state === 'error') && recorder.current) {
-        recorder.current.stop();
-        recorder.current = null;
+      if (s.state === 'idle' || s.state === 'error') {
+        liveRef.current = false;
+        if (recorder.current) {
+          void recorder.current.stop();
+          recorder.current = null;
+        }
       }
     });
     return () => {
       off();
       offChanged();
+      offTarget();
       compositor.current?.stop();
     };
   }, [showToast]);
@@ -123,7 +130,7 @@ export default function App() {
 
   // Cambios de rendimiento desde Ajustes: recomponer el canvas.
   useEffect(() => {
-    if (settings && compositor.current && status.state === 'idle') {
+    if (settings && compositor.current && !liveRef.current) {
       compositor.current.setOrientation(settings.orientation, settings.performance === 'light');
     }
   }, [settings?.performance, settings?.orientation, status.state]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -264,7 +271,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
       if (e.key === 'Escape') {
         compositor.current?.hideAllTitles();
         audioEngine.current?.stopAll();
@@ -310,13 +317,16 @@ export default function App() {
   // (así los textos, como el de la polera, se leen bien para el público).
 
   const save = useCallback(async (next: AppSettings) => {
-    setSettings(next);
-    await window.quirolive.settings.set(next);
+    // Las fuentes (cámara, micrófono, encuadre) se guardan por otro camino: no pisarlas.
+    const current = await window.quirolive.settings.get();
+    const merged = { ...next, sources: current.sources ?? next.sources };
+    setSettings(merged);
+    await window.quirolive.settings.set(merged);
     if (compositor.current) compositor.current.brandLabel = next.business.name;
   }, []);
 
   const setOrientation = (o: Orientation) => {
-    if (!settings || status.state !== 'idle') return;
+    if (!settings || liveRef.current) return;
     compositor.current?.setOrientation(o, settings.performance === 'light');
     void save({ ...settings, orientation: o });
   };
@@ -327,6 +337,7 @@ export default function App() {
     const { width, height } = (light ? SIZES_LIGHT : SIZES)[settings.orientation];
     const fps = light ? Math.min(settings.fps, 24) : settings.fps;
     const videoBitrateKbps = light ? Math.min(settings.videoBitrateKbps, 2500) : settings.videoBitrateKbps;
+    liveRef.current = true;
     try {
       await window.quirolive.stream.start({
         targets: settings.targets,
@@ -345,12 +356,14 @@ export default function App() {
       recorder.current = rec;
       await window.quirolive.chat.connect();
     } catch (err) {
+      liveRef.current = false;
       showToast((err as Error).message);
     }
   };
 
   const stopLive = async () => {
-    recorder.current?.stop();
+    // Esperar el último trozo del grabador antes de cerrar FFmpeg, para no perder el final.
+    await recorder.current?.stop();
     recorder.current = null;
     await window.quirolive.stream.stop();
     await window.quirolive.chat.disconnect();
@@ -371,7 +384,7 @@ export default function App() {
   if (!settings) return <div className="page">Cargando…</div>;
 
   const live = status.state === 'live' || status.state === 'starting';
-  const activeTargets = settings.targets.filter((t) => t.enabled && t.key);
+  const activeTargets = settings.targets.filter((t) => t.enabled && t.key && t.url);
 
   return (
     <div className="app">
@@ -436,7 +449,14 @@ export default function App() {
                 onMic={setMicId}
                 onMirror={setMirror}
                 onMute={() => setMicMuted((m) => !m)}
-                onSwap={() => compositor.current?.swap()}
+                onSwap={() => {
+                  // Intercambio a nivel de estado: ambas cámaras se reabren en su nuevo rol.
+                  const a = camId;
+                  const b = pipCamId;
+                  if (!b) return;
+                  setCamId(b);
+                  setPipCamId(a || (devices.cams[0]?.deviceId ?? ''));
+                }}
               />
               <div className="source">
                 <label>Encuadre</label>

@@ -25,6 +25,7 @@ const api = {
     openRecordings: (): Promise<string> => ipcRenderer.invoke('stream:openRecordings'),
     onStatus: (cb: (s: StreamStatus) => void) => on<StreamStatus>('stream:status', cb),
     onLog: (cb: (line: string) => void) => on<string>('stream:log', cb),
+    onTargetFailed: (cb: (name: string) => void) => on<string>('stream:targetFailed', cb),
   },
   settings: {
     get: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),

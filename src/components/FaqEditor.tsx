@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { AppSettings, BusinessInfo, FaqEntry } from '../../shared/types';
 
 interface Props {
@@ -16,6 +17,14 @@ const BUSINESS_FIELDS: Array<{ key: keyof BusinessInfo; label: string; placehold
   { key: 'services', label: 'Qué tratan / diagnósticos', placeholder: 'Dolor lumbar, cervical, hernias, ciática, escoliosis…', multiline: true },
   { key: 'extra', label: 'Otros datos útiles', placeholder: 'Estacionamiento, convenios, primera consulta…', multiline: true },
 ];
+
+/** Campo de palabras clave: se parsea al salir del campo, así se puede escribir la coma. */
+function KeywordsInput({ value, onChange }: { value: string[]; onChange: (k: string[]) => void }) {
+  const [text, setText] = useState(value.join(', '));
+  useEffect(() => setText(value.join(', ')), [value]);
+  const commit = () => onChange(text.split(',').map((k) => k.trim()).filter(Boolean));
+  return <input value={text} onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && commit()} />;
+}
 
 /** Datos del negocio + preguntas frecuentes que alimentan las respuestas automáticas. */
 export function FaqEditor({ settings, onSave }: Props) {
@@ -88,7 +97,7 @@ export function FaqEditor({ settings, onSave }: Props) {
             </div>
             <div className="field">
               <label>Palabras clave (separadas por coma)</label>
-              <input value={f.keywords.join(', ')} onChange={(e) => updateFaq(f.id, { keywords: e.target.value.split(',').map((k) => k.trim()).filter(Boolean) })} />
+              <KeywordsInput value={f.keywords} onChange={(keywords) => updateFaq(f.id, { keywords })} />
             </div>
             <div className="field" style={{ marginBottom: 0 }}>
               <label>Respuesta</label>

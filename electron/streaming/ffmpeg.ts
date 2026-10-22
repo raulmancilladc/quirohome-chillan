@@ -59,6 +59,10 @@ export class StreamEngine extends EventEmitter {
   private proc: ChildProcess | null = null;
   /** Codificador de hardware detectado (null = solo software). */
   hardwareEncoder: VideoEncoder | null = null;
+  /** Destinos RTMP activos (para informar cuál falló). */
+  private slaves: Array<{ name: string; url: string }> = [];
+  private lastFailNotice = new Map<string, number>();
+  private dropped = 0;
   private status: StreamStatus = { state: 'idle' };
   private stderrTail: string[] = [];
 
@@ -83,11 +87,14 @@ export class StreamEngine extends EventEmitter {
     if (this.proc) throw new Error('Ya hay una transmisión en curso');
 
     const outputs: string[] = [];
+    this.slaves = [];
+    this.lastFailNotice.clear();
     for (const t of opts.targets) {
       if (!t.enabled) continue;
       if (!t.url || !t.key) continue;
       const url = t.url.replace(/\/+$/, '') + '/' + t.key.trim();
       outputs.push(`[f=flv:onfail=ignore]${escapeTee(url)}`);
+      this.slaves.push({ name: t.name, url });
     }
 
     const encoder: VideoEncoder = opts.hardwareEncoder && this.hardwareEncoder ? this.hardwareEncoder : 'libx264';
@@ -134,6 +141,8 @@ export class StreamEngine extends EventEmitter {
         '-ac', '2',
         '-flags', '+global_header',
         '-f', 'tee',
+        '-use_fifo', '1',
+        '-fifo_options', 'queue_size=200:drop_pkts_on_overflow=1:attempt_recovery=1:recovery_wait_time=5',
         outputs.join('|'),
       );
     }
@@ -153,6 +162,17 @@ export class StreamEngine extends EventEmitter {
         this.stderrTail.push(line);
         if (this.stderrTail.length > 40) this.stderrTail.shift();
         this.emit('log', line);
+        // "[fifo] Error opening rtmps://…" o "Slave muxer #N failed" → un destino no acepta la conexión.
+        const byUrl = /Error opening (rtmps?:\/\/\S+)/.exec(line);
+        const byIndex = /Slave muxer #(\d+) failed/.exec(line);
+        const slave = byUrl ? this.slaves.find((x) => byUrl[1].startsWith(x.url)) : byIndex ? this.slaves[Number(byIndex[1])] : undefined;
+        if (slave) {
+          const last = this.lastFailNotice.get(slave.name) ?? 0;
+          if (Date.now() - last > 30_000) {
+            this.lastFailNotice.set(slave.name, Date.now());
+            this.emit('targetFailed', slave.name);
+          }
+        }
       }
     });
 
@@ -190,7 +210,13 @@ export class StreamEngine extends EventEmitter {
 
   write(chunk: Buffer): void {
     const stdin = this.proc?.stdin;
-    if (!stdin || stdin.destroyed) return;
+    if (!stdin || stdin.destroyed || stdin.writableEnded) return;
+    // Si FFmpeg no consume (un destino atascado), descartamos en vez de acumular memoria.
+    if (stdin.writableLength > 16 * 1024 * 1024) {
+      this.dropped++;
+      if (this.dropped % 10 === 1) this.emit('log', `Transmisión atascada: se descartan trozos (${this.dropped})`);
+      return;
+    }
     stdin.write(chunk);
   }
 

@@ -26,6 +26,13 @@ export class CommentLog {
 
   add(message: ChatMessage, answer?: string) {
     if (!this.jsonl) return;
+    const existing = this.entries.find((e) => e.message.id === message.id);
+    if (existing) {
+      // Ya estaba registrado: solo se completa con la respuesta.
+      existing.answer = answer ?? existing.answer;
+      this.jsonl.write(JSON.stringify({ t: existing.t, id: message.id, answer }) + '\n');
+      return;
+    }
     const t = Math.max(0, (Date.now() - this.startedAt) / 1000);
     const entry = { t, message, answer };
     this.entries.push(entry);

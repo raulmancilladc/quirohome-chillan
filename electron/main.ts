@@ -4,7 +4,7 @@ import type { AppSettings, BlockedUser, ChatAccount, ChatMessage, FaqEntry, Stre
 import { loadSettings, saveSettings } from './store';
 import { StreamEngine, resolveFfmpegPath } from './streaming/ffmpeg';
 import { ChatAggregator } from './chat/aggregator';
-import { suggestAnswer, keywordsFromQuestion, normalize } from './autoanswer/engine';
+import { suggestAnswer, keywordsFromQuestion, normalize, fillTemplate } from './autoanswer/engine';
 import { CommentLog } from './streaming/commentlog';
 import { youtubeLogin, YouTubeApi } from './chat/youtube';
 import { facebookCreateLive } from './chat/facebook';
@@ -61,11 +61,14 @@ engine.on('status', (s) => {
   if (s.state === 'live' && s.recordingPath && s.startedAt && !commentLog.active) {
     commentLog.start(s.recordingPath, s.startedAt);
   }
-  if ((s.state === 'idle' || s.state === 'error') && commentLog.active) {
-    commentLog.stop();
+  if (s.state === 'idle' || s.state === 'error') {
+    if (commentLog.active) commentLog.stop();
+    // El live de Facebook creado desde la app termina con la transmisión.
+    for (const k of Object.keys(facebookLiveIds)) delete facebookLiveIds[k];
   }
 });
 engine.on('log', (line: string) => send('stream:log', line));
+engine.on('targetFailed', (name: string) => send('stream:targetFailed', name));
 
 ipcMain.handle('stream:start', (_e, opts: StreamStartOptions) => {
   engine.start(opts);
@@ -107,15 +110,16 @@ function isBlocked(m: ChatMessage): boolean {
 }
 
 /** Guarda la respuesta como aprendizaje: historial + nueva pregunta frecuente si fue editada o manual. */
-function learn(message: ChatMessage, suggestion: SuggestedAnswer) {
+function learn(message: ChatMessage, suggestion: SuggestedAnswer, reviewedByHuman: boolean) {
   settings.answeredHistory = [...settings.answeredHistory, {
     question: message.text, answer: suggestion.answer, platform: message.platform, source: suggestion.source, timestamp: Date.now(),
   }].slice(-300);
 
-  if (settings.autoAnswer.learnFromAnswers) {
+  // Solo se aprende de respuestas que una persona escribió o revisó, nunca de la IA en automático.
+  if (settings.autoAnswer.learnFromAnswers && reviewedByHuman) {
     const original = suggestion.faqId ? settings.faq.find((f) => f.id === suggestion.faqId) : undefined;
     const isSocial = suggestion.faqId?.startsWith('social-');
-    const unchanged = original && normalize(original.answer) === normalize(suggestion.answer);
+    const unchanged = original && normalize(fillTemplate(original.answer, settings.business)) === normalize(suggestion.answer);
     if (!isSocial && !unchanged && suggestion.answer.trim()) {
       const keywords = keywordsFromQuestion(message.text);
       if (keywords.length > 0) {
@@ -139,40 +143,51 @@ function learn(message: ChatMessage, suggestion: SuggestedAnswer) {
 const lastAutoReply = new Map<string, number>();
 
 chat.on('message', async (m: ChatMessage) => {
-  if (isBlocked(m)) return;
-  send('chat:message', m);
-  commentLog.add(m);
-  if (settings.autoAnswer.mode === 'off') return;
-  const suggestion = await suggestAnswer(m, engineOptions());
-  if (!suggestion) return;
-  if (settings.autoAnswer.mode === 'auto') {
-    const key = `${m.platform}:${normalize(m.author)}`;
-    const isSocial = suggestion.faqId?.startsWith('social-');
-    const last = lastAutoReply.get(key) ?? 0;
-    // Saludos y gracias: como mucho una respuesta por persona cada 10 minutos.
-    if (isSocial && Date.now() - last < 10 * 60_000) return;
-    lastAutoReply.set(key, Date.now());
-  }
-  if (settings.autoAnswer.mode === 'auto') {
-    await publishAnswer(m, suggestion);
-  } else {
-    send('chat:suggestion', suggestion);
+  try {
+    if (isBlocked(m)) return;
+    send('chat:message', m);
+    commentLog.add(m);
+    if (settings.autoAnswer.mode === 'off') return;
+    const suggestion = await suggestAnswer(m, engineOptions());
+    if (!suggestion) return;
+    if (settings.autoAnswer.mode === 'auto') {
+      const isSocial = suggestion.faqId?.startsWith('social-');
+      if (isSocial) {
+        // Saludos y gracias: como mucho una respuesta por persona cada 10 minutos.
+        const key = `${m.platform}:${normalize(m.author)}`;
+        const last = lastAutoReply.get(key) ?? 0;
+        if (Date.now() - last < 10 * 60_000) return;
+        lastAutoReply.set(key, Date.now());
+      }
+      await publishAnswer(m, suggestion, false);
+    } else {
+      send('chat:suggestion', suggestion);
+    }
+  } catch (err) {
+    send('stream:log', `Error al procesar un comentario: ${(err as Error).message}`);
   }
 });
 chat.on('status', (s) => send('chat:status', s));
 
-async function publishAnswer(message: ChatMessage, suggestion: SuggestedAnswer) {
+async function publishAnswer(message: ChatMessage, suggestion: SuggestedAnswer, reviewedByHuman = true) {
   let posted = false;
   if (settings.autoAnswer.postToChat) {
     try {
       posted = await chat.reply(message, suggestion.answer);
     } catch (err) {
-      send('chat:status', { platform: message.platform, connected: true, message: `No se pudo responder: ${(err as Error).message}` });
+      send('chat:status', {
+        platform: message.platform, accountId: message.accountId, accountLabel: message.accountLabel,
+        connected: chat.canReply(message.accountId), message: `No se pudo responder: ${(err as Error).message}`,
+      });
     }
   }
   send('chat:answered', { message, suggestion, posted, overlay: settings.autoAnswer.showOverlay });
   commentLog.add(message, suggestion.answer);
-  learn(message, suggestion);
+  try {
+    learn(message, suggestion, reviewedByHuman);
+  } catch (err) {
+    send('stream:log', `No se pudo guardar el aprendizaje: ${(err as Error).message}`);
+  }
 }
 
 ipcMain.handle('chat:connect', async () => {
@@ -269,8 +284,22 @@ ipcMain.handle('app:setSystemMute', async (_e, muted: boolean) => {
     return run('osascript', ['-e', `set volume output muted ${muted ? 'true' : 'false'}`]);
   }
   if (process.platform === 'win32') {
-    // Alterna el silencio con la tecla multimedia (no hay forma directa sin dependencias).
-    const ps = '(New-Object -ComObject WScript.Shell).SendKeys([char]173)';
+    // Windows: fija el estado leyendo el mute actual con la API de audio y alternando solo si difiere.
+    const ps = `
+Add-Type -TypeDefinition @'
+using System.Runtime.InteropServices;
+[Guid("5CDF2C82-841E-4546-9722-0CF74078229A"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IAudioEndpointVolume { int f1(); int f2(); int f3(); int f4(); int f5(); int f6(); int f7(); int f8(); int f9(); int f10(); int f11(); int f12();
+ int SetMute([MarshalAs(UnmanagedType.Bool)] bool bMute, System.Guid ctx); int GetMute(out bool pbMute); }
+[Guid("D666063F-1587-4E43-81F1-B948E807363F"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDevice { int Activate(ref System.Guid id, int clsCtx, System.IntPtr p, out IAudioEndpointVolume aev); }
+[Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDeviceEnumerator { int f1(); int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice dev); }
+[ComImport,Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class MMDeviceEnumeratorComObject {}
+public class Audio { public static void SetMute(bool m){ var e=(IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject()); IMMDevice d; e.GetDefaultAudioEndpoint(0,1,out d);
+ var g=typeof(IAudioEndpointVolume).GUID; IAudioEndpointVolume v; d.Activate(ref g,23,System.IntPtr.Zero,out v); v.SetMute(m,System.Guid.Empty);} }
+'@
+[Audio]::SetMute($${muted ? 'true' : 'false'})`;
     return run('powershell', ['-NoProfile', '-Command', ps]);
   }
   return run('pactl', ['set-sink-mute', '@DEFAULT_SINK@', muted ? '1' : '0']);

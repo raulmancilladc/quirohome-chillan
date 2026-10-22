@@ -1,7 +1,7 @@
 import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { AppSettings, ChatAccount } from '../shared/types';
+import type { AppSettings, BusinessInfo, ChatAccount } from '../shared/types';
 import defaultFaq from './autoanswer/faq.default.json';
 
 const FILE = () => path.join(app.getPath('userData'), 'settings.json');
@@ -94,6 +94,23 @@ function migrateLegacyChat(chat?: LegacyChat): ChatAccount[] {
   return out;
 }
 
+/** Rellena solo los campos vacíos con los valores por defecto. */
+function fillEmpty(saved: Partial<BusinessInfo>, base: BusinessInfo): BusinessInfo {
+  const out: BusinessInfo = { ...base };
+  for (const k of Object.keys(base) as Array<keyof BusinessInfo>) {
+    const v = saved[k];
+    if (typeof v === 'string' && v.trim()) out[k] = v;
+  }
+  return out;
+}
+
+/** Nuevas FAQ por defecto se agregan; las editadas y las aprendidas se conservan. */
+function mergeFaq(saved: AppSettings['faq'], base: AppSettings['faq']): AppSettings['faq'] {
+  const savedIds = new Set(saved.map((f) => f.id));
+  const defaults = base.filter((f) => !savedIds.has(f.id));
+  return [...saved, ...defaults];
+}
+
 export function loadSettings(): AppSettings {
   try {
     const raw = fs.readFileSync(FILE(), 'utf8');
@@ -108,13 +125,13 @@ export function loadSettings(): AppSettings {
       accounts: saved.accounts ?? migrateLegacyChat(saved.chat),
       autoAnswer: { ...base.autoAnswer, ...(saved.autoAnswer ?? {}) },
       defaultsVersion: DEFAULTS_VERSION,
-      business: stale ? base.business : { ...base.business, ...(saved.business ?? {}) },
+      business: stale ? fillEmpty(saved.business ?? {}, base.business) : { ...base.business, ...(saved.business ?? {}) },
       targets: saved.targets?.length ? saved.targets : base.targets,
       blockedUsers: saved.blockedUsers ?? [],
       titles: saved.titles ?? base.titles,
       sounds: saved.sounds ?? base.sounds,
       answeredHistory: saved.answeredHistory ?? [],
-      faq: stale || !saved.faq?.length ? base.faq : saved.faq,
+      faq: stale ? mergeFaq(saved.faq ?? [], base.faq) : saved.faq?.length ? saved.faq : base.faq,
     };
   } catch {
     return defaultSettings();

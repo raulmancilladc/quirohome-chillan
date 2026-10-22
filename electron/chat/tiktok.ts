@@ -32,8 +32,21 @@ export class TikTokChat extends EventEmitter implements ChatConnector {
     this.canReply = Boolean(account.sessionId && account.ttTargetIdc);
   }
 
+  private seen = new Set<string>();
+
   async connect(): Promise<void> {
     this.running = true;
+    // Cerrar la conexión anterior antes de abrir otra (si no, llegan mensajes duplicados).
+    if (this.conn) {
+      const old = this.conn;
+      this.conn = null;
+      try {
+        old.removeAllListeners();
+        await old.disconnect();
+      } catch {
+        /* ya estaba cerrada */
+      }
+    }
     const username = this.creds.username.replace(/^@/, '').trim();
     const session = this.canReply
       ? { cookie: { type: 'cookie' as const, value: { sessionId: this.creds.sessionId!, ttTargetIdc: this.creds.ttTargetIdc! } } }
@@ -51,6 +64,12 @@ export class TikTokChat extends EventEmitter implements ChatConnector {
 
     conn.on(WebcastEvent.CHAT, (data) => {
       if (!data.content) return;
+      const msgId = data.common?.msgId;
+      if (msgId) {
+        if (this.seen.has(msgId)) return;
+        this.seen.add(msgId);
+        if (this.seen.size > 5000) this.seen.clear();
+      }
       const m: ChatMessage = {
         id: `tt-${this.accountId}-${data.common?.msgId ?? `${Date.now()}-${Math.random()}`}`,
         platform: 'tiktok',
@@ -66,6 +85,7 @@ export class TikTokChat extends EventEmitter implements ChatConnector {
       this.emit('status', true, 'TikTok conectado');
     });
     conn.on(ControlEvent.DISCONNECTED, () => {
+      if (this.conn !== conn) return; // conexión antigua: ignorar
       this.emit('status', false, 'TikTok desconectado');
       this.scheduleRetry();
     });

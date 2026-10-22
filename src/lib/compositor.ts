@@ -101,8 +101,8 @@ export class Compositor {
   setOrientation(o: Orientation, light = false) {
     this.orientation = o;
     const { width, height } = (light ? SIZES_LIGHT : SIZES)[o];
-    this.canvas.width = width;
-    this.canvas.height = height;
+    if (this.canvas.width !== width) this.canvas.width = width;
+    if (this.canvas.height !== height) this.canvas.height = height;
   }
 
   setVideo(v: HTMLVideoElement | null) {
@@ -111,13 +111,6 @@ export class Compositor {
 
   setPip(v: HTMLVideoElement | null) {
     this.pip = v;
-  }
-
-  /** Intercambia cámara principal y recuadro. */
-  swap() {
-    const a = this.video;
-    this.video = this.pip;
-    this.pip = a;
   }
 
   start() {

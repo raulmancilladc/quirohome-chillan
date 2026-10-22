@@ -5,6 +5,7 @@
 export class StreamRecorder {
   private recorder: MediaRecorder | null = null;
   private stream: MediaStream | null = null;
+  private queue: Promise<void> = Promise.resolve();
 
   static pickMimeType(): string {
     const candidates = [
@@ -27,19 +28,31 @@ export class StreamRecorder {
       videoBitsPerSecond: videoBitrateKbps * 2000,
       audioBitsPerSecond: 160_000,
     });
-    this.recorder.ondataavailable = async (e) => {
-      if (e.data.size > 0) {
+    this.recorder.ondataavailable = (e) => {
+      if (e.data.size === 0) return;
+      // Encadenar para que los trozos lleguen en orden.
+      this.queue = this.queue.then(async () => {
         const buf = await e.data.arrayBuffer();
         window.quirolive.stream.chunk(buf);
-      }
+      });
     };
     this.recorder.start(1000);
   }
 
-  stop() {
-    this.recorder?.stop();
-    this.recorder = null;
-    this.stream?.getVideoTracks().forEach((t) => t.stop());
-    this.stream = null;
+  /** Detiene y espera a que salga el último trozo. */
+  stop(): Promise<void> {
+    return new Promise((resolve) => {
+      const rec = this.recorder;
+      this.recorder = null;
+      const finish = () => {
+        this.stream?.getVideoTracks().forEach((t) => t.stop());
+        this.stream = null;
+        resolve();
+      };
+      if (!rec || rec.state === 'inactive') return finish();
+      rec.onstop = finish;
+      rec.stop();
+      setTimeout(finish, 3000);
+    });
   }
 }

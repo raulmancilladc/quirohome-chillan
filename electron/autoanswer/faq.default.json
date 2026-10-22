@@ -69,8 +69,7 @@
       "micro",
       "estacionamiento",
       "estacionar",
-      "mapa",
-      "auto"
+      "mapa"
     ],
     "answer": "En Providencia: a una cuadra del metro Manuel Montt; sin estacionamiento propio, pero hay parquímetros en Manuel Montt y el SABA de Av. Providencia. En Chillán: El Roble 224, con estacionamiento en el lugar.",
     "enabled": true
@@ -82,13 +81,16 @@
       "pagina web",
       "página web",
       "sitio web",
-      "web",
-      "link",
-      "pagina",
-      "página",
-      "sitio",
       "redes",
-      "instagram"
+      "instagram",
+      "pagina web",
+      "sitio web",
+      "la pagina",
+      "la web",
+      "que pagina",
+      "qué página",
+      "tu pagina",
+      "tu web"
     ],
     "answer": "Toda la info está en quirohome.cl. En Instagram nos encuentras como @quirohome (Santiago), @quirohomechillan (Chillán) y @raulmancilladc.",
     "enabled": true
@@ -157,8 +159,7 @@
       "cuanto vale",
       "cuánto vale",
       "tarifa",
-      "costo",
-      "cuesta"
+      "costo"
     ],
     "answer": "La sesión conmigo (Raúl Mancilla, en Providencia) es $40.000; con el resto del equipo, en ambas sedes, $33.000. Incluye evaluación y tratamiento en la misma hora. El masaje de 45 min es $30.000.",
     "enabled": true
@@ -247,7 +248,6 @@
       "crujir",
       "cruje",
       "peligroso",
-      "seguro",
       "riesgo",
       "clic",
       "click",
@@ -256,7 +256,6 @@
       "ruido",
       "truena",
       "tronar",
-      "crack",
       "duele el ajuste",
       "duele la quiropraxia",
       "duele la sesion",
@@ -322,8 +321,7 @@
       "desde que edad",
       "desde qué edad",
       "menores",
-      "adolescente",
-      "años"
+      "adolescente"
     ],
     "answer": "Atendemos desde los 14 años; los menores de edad vienen con un adulto responsable que firma el consentimiento. Para más chicos no hacemos la atención.",
     "enabled": true
@@ -554,13 +552,16 @@
     "keywords": [
       "empeine",
       "fascitis",
-      "pie",
       "pies",
       "talon",
       "talón",
       "tobillo",
       "espolon",
-      "espolón"
+      "espolón",
+      "el pie",
+      "los pies",
+      "me duele el pie",
+      "planta del pie"
     ],
     "answer": "El pie y el tobillo aguantan todo el día, se quejan con razón. Sin verte no te puedo decir qué es: prefiero evaluarte antes de opinar. Escríbeme y lo vemos: Providencia +56 9 7630 3081 · Chillán +56 9 8630 2937.",
     "enabled": true
