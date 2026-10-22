@@ -269,6 +269,67 @@ ipcMain.handle('sounds:pick', async () => {
   });
   return r.canceled ? [] : r.filePaths;
 });
+/** Importa el catálogo APTOS-PARA-LIVE.json (o similar): devuelve rutas de archivos existentes. */
+ipcMain.handle('sounds:importCatalog', async () => {
+  const fs = await import('node:fs/promises');
+  const r = await dialog.showOpenDialog({ title: 'Elegir catálogo de sonidos (JSON)', filters: [{ name: 'JSON', extensions: ['json'] }], properties: ['openFile'] });
+  if (r.canceled || !r.filePaths[0]) return [];
+  const jsonPath = r.filePaths[0];
+  const baseDir = path.dirname(jsonPath);
+  const raw = JSON.parse(await fs.readFile(jsonPath, 'utf8')) as unknown;
+  type Entry = { nombre?: string; name?: string; archivo?: string; carpeta?: string; dur?: number; pierde_dB?: number; pierde_en_telefono_dB?: number };
+  let entries: Entry[] = [];
+  if (Array.isArray(raw)) entries = raw as Entry[];
+  else if (raw && typeof raw === 'object') {
+    // Catálogo por categoría: { golpe: [...], fail: [...] } o { clips: [...] }
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (Array.isArray(v)) entries.push(...(v as Entry[]).map((e) => ({ carpeta: e.carpeta ?? k, ...e })));
+    }
+  }
+  const out: Array<{ name: string; path: string; dur?: number; lossDb?: number; folder: string }> = [];
+  for (const e of entries) {
+    const nombre = e.nombre ?? e.name ?? e.archivo;
+    if (!nombre) continue;
+    const candidates = [nombre, `${nombre}.wav`, `${nombre}.mp3`].flatMap((n) => [
+      path.join(baseDir, e.carpeta ?? '', n),
+      path.join(baseDir, n),
+      path.join(path.dirname(baseDir), e.carpeta ?? '', n),
+    ]);
+    let found: string | null = null;
+    for (const c of candidates) {
+      try {
+        await fs.access(c);
+        found = c;
+        break;
+      } catch {
+        /* siguiente */
+      }
+    }
+    if (!found) continue;
+    out.push({ name: path.basename(nombre).replace(/\.[^.]+$/, ''), path: found, dur: e.dur, lossDb: e.pierde_dB ?? e.pierde_en_telefono_dB, folder: e.carpeta ?? path.basename(path.dirname(found)) });
+  }
+  return out;
+});
+
+/** Importa todos los audios de una carpeta (y subcarpetas); la app mide duración y pérdida en teléfono. */
+ipcMain.handle('sounds:importFolder', async () => {
+  const fs = await import('node:fs/promises');
+  const r = await dialog.showOpenDialog({ title: 'Elegir carpeta de sonidos', properties: ['openDirectory'] });
+  if (r.canceled || !r.filePaths[0]) return [];
+  const root = r.filePaths[0];
+  const out: Array<{ name: string; path: string; folder: string }> = [];
+  async function walk(dir: string, depth: number) {
+    if (depth > 3) return;
+    for (const ent of await fs.readdir(dir, { withFileTypes: true })) {
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) await walk(full, depth + 1);
+      else if (/\.(wav|mp3|m4a|aac|ogg|flac)$/i.test(ent.name)) out.push({ name: ent.name.replace(/\.[^.]+$/, ''), path: full, folder: path.basename(dir) });
+    }
+  }
+  await walk(root, 0);
+  return out;
+});
+
 ipcMain.handle('sounds:read', async (_e, filePath: string) => {
   const fs = await import('node:fs/promises');
   const data = await fs.readFile(filePath);

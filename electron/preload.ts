@@ -56,6 +56,8 @@ const api = {
   sounds: {
     pick: (): Promise<string[]> => ipcRenderer.invoke('sounds:pick'),
     read: (filePath: string): Promise<ArrayBuffer> => ipcRenderer.invoke('sounds:read', filePath),
+    importCatalog: (): Promise<Array<{ name: string; path: string; dur?: number; lossDb?: number; folder: string }>> => ipcRenderer.invoke('sounds:importCatalog'),
+    importFolder: (): Promise<Array<{ name: string; path: string; folder: string }>> => ipcRenderer.invoke('sounds:importFolder'),
   },
   app: {
     openExternal: (url: string): Promise<void> => ipcRenderer.invoke('app:openExternal', url),

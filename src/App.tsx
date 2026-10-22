@@ -500,11 +500,12 @@ export default function App() {
                 </button>
               ))}
               <span className="muted small-text" style={{ marginLeft: 8 }}>Sonidos:</span>
-              {settings.sounds.slice(0, 8).map((snd) => (
-                <button key={snd.id} className="small" onClick={() => playSound(snd.id)} title={snd.hotkey ? `Tecla ${snd.hotkey.toUpperCase()}` : ''}>
-                  {snd.emoji} {snd.name}
+              {settings.sounds.slice(0, 12).map((snd) => (
+                <button key={snd.id} className="small sfx" onClick={() => playSound(snd.id)} title={snd.hotkey ? `Tecla ${snd.hotkey.toUpperCase()}` : ''}>
+                  {snd.emoji} {snd.name}{snd.hotkey ? <span className="key">{snd.hotkey.toUpperCase()}</span> : null}
                 </button>
               ))}
+              {settings.sounds.length > 12 && <button className="small" onClick={() => setTab('titulos')}>+{settings.sounds.length - 12} más…</button>}
               <button className="small ghost" title="Esc: ocultar títulos y cortar sonidos" onClick={() => { compositor.current?.hideAllTitles(); audioEngine.current?.stopAll(); }}>✕</button>
             </div>
             <div className="dest-chips">
@@ -535,6 +536,7 @@ export default function App() {
           onPlaySound={playSound}
           isVisible={(id) => compositor.current?.isTitleVisible(id) ?? false}
           onHideAll={() => compositor.current?.hideAllTitles()}
+          onAnalyze={async (path) => getAudio().analyzeForPhone(await window.quirolive.sounds.read(path))}
         />
       )}
       {tab === 'destinos' && <Destinations settings={settings} onSave={save} onToast={showToast} />}

@@ -21,6 +21,8 @@ export class AudioEngine {
   readonly ctx: AudioContext;
   private destination: MediaStreamAudioDestinationNode;
   private micGain: GainNode;
+  /** Baja la voz unos 5 dB mientras suena un efecto, para que no lo tape. */
+  private duckGain: GainNode;
   private sfxGain: GainNode;
   private monitorGain: GainNode;
   private analyser: AnalyserNode;
@@ -37,6 +39,7 @@ export class AudioEngine {
     this.ctx = new AudioContext({ sampleRate: 48000 });
     this.destination = this.ctx.createMediaStreamDestination();
     this.micGain = this.ctx.createGain();
+    this.duckGain = this.ctx.createGain();
     this.sfxGain = this.ctx.createGain();
     this.monitorGain = this.ctx.createGain();
     this.monitorGain.gain.value = 0;
@@ -44,7 +47,8 @@ export class AudioEngine {
     this.analyser.fftSize = 2048;
     this.analyser.smoothingTimeConstant = 0.6;
     this.micGain.connect(this.analyser);
-    this.micGain.connect(this.destination);
+    this.micGain.connect(this.duckGain);
+    this.duckGain.connect(this.destination);
     this.sfxGain.connect(this.destination);
     this.sfxGain.connect(this.monitorGain);
     this.monitorGain.connect(this.ctx.destination);
@@ -80,10 +84,33 @@ export class AudioEngine {
     this.monitorGain.gain.value = monitor ? 1 : 0;
   }
 
+  /** Decodifica, normaliza (al cargar, no al reproducir) y guarda en memoria para disparar sin latencia. */
   async loadSound(id: string, data: ArrayBuffer): Promise<number> {
     const buffer = await this.ctx.decodeAudioData(data.slice(0));
+    normalizeBuffer(buffer);
     this.buffers.set(id, buffer);
     return buffer.duration;
+  }
+
+  /** Mide cuánto pierde un sonido en el parlante de un teléfono (dB) con ventanas de 80 ms. */
+  async analyzeForPhone(data: ArrayBuffer): Promise<{ dur: number; lossDb: number }> {
+    const buffer = await this.ctx.decodeAudioData(data.slice(0));
+    const sr = buffer.sampleRate;
+    const off = new OfflineAudioContext(1, buffer.length, sr);
+    const src = off.createBufferSource();
+    src.buffer = buffer;
+    // Pasa-altos 4.º orden a 500 Hz + pasa-bajos 4.º orden a 11 kHz (dos biquads Butterworth cada uno).
+    const hp1 = off.createBiquadFilter(); hp1.type = 'highpass'; hp1.frequency.value = 500; hp1.Q.value = 0.541;
+    const hp2 = off.createBiquadFilter(); hp2.type = 'highpass'; hp2.frequency.value = 500; hp2.Q.value = 1.307;
+    const lp1 = off.createBiquadFilter(); lp1.type = 'lowpass'; lp1.frequency.value = 11000; lp1.Q.value = 0.541;
+    const lp2 = off.createBiquadFilter(); lp2.type = 'lowpass'; lp2.frequency.value = 11000; lp2.Q.value = 1.307;
+    src.connect(hp1); hp1.connect(hp2); hp2.connect(lp1); lp1.connect(lp2); lp2.connect(off.destination);
+    src.start();
+    const filtered = await off.startRendering();
+    const before = windowPeak(mono(buffer), sr, 0.08);
+    const after = windowPeak(filtered.getChannelData(0), sr, 0.08);
+    const lossDb = 20 * Math.log10(Math.max(1e-6, before) / Math.max(1e-6, after));
+    return { dur: buffer.duration, lossDb: Math.round(lossDb * 10) / 10 };
   }
 
   hasSound(id: string): boolean {
@@ -97,12 +124,25 @@ export class AudioEngine {
     const src = this.ctx.createBufferSource();
     src.buffer = buffer;
     src.connect(this.sfxGain);
-    src.onended = () => this.playing.delete(src);
+    src.onended = () => {
+      this.playing.delete(src);
+      if (this.playing.size === 0) this.duck(false);
+    };
     this.playing.add(src);
+    this.duck(true);
     src.start();
   }
 
+  /** Voz a -5 dB en 30 ms al entrar un efecto; vuelve en 180 ms al terminar. */
+  private duck(on: boolean) {
+    const now = this.ctx.currentTime;
+    this.duckGain.gain.cancelScheduledValues(now);
+    this.duckGain.gain.setValueAtTime(this.duckGain.gain.value, now);
+    this.duckGain.gain.linearRampToValueAtTime(on ? 0.562 : 1, now + (on ? 0.03 : 0.18));
+  }
+
   stopAll() {
+    this.duck(false);
     for (const s of this.playing) {
       try {
         s.stop();
@@ -205,5 +245,44 @@ export class AudioEngine {
 
   stopMonitor() {
     window.clearInterval(this.timer);
+  }
+}
+
+/** Mezcla a mono para medir. */
+function mono(buffer: AudioBuffer): Float32Array {
+  if (buffer.numberOfChannels === 1) return buffer.getChannelData(0);
+  const out = new Float32Array(buffer.length);
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const d = buffer.getChannelData(c);
+    for (let i = 0; i < d.length; i++) out[i] += d[i] / buffer.numberOfChannels;
+  }
+  return out;
+}
+
+/** Pico máximo de RMS en ventanas de `win` segundos. */
+function windowPeak(d: Float32Array, sr: number, win: number): number {
+  const n = Math.max(1, Math.floor(sr * win));
+  let best = 0;
+  for (let i = 0; i + n <= d.length; i += Math.floor(n / 2)) {
+    let sum = 0;
+    for (let j = i; j < i + n; j++) sum += d[j] * d[j];
+    best = Math.max(best, Math.sqrt(sum / n));
+  }
+  return best;
+}
+
+/** Normaliza al cargar: RMS (ventanas de 80 ms, pico) a -14 dBFS, con tope de pico en -1 dBFS. */
+function normalizeBuffer(buffer: AudioBuffer) {
+  const target = Math.pow(10, -14 / 20);
+  const peakCap = Math.pow(10, -1 / 20);
+  const m = mono(buffer);
+  const rms = windowPeak(m, buffer.sampleRate, 0.08);
+  let peak = 0;
+  for (const v of m) if (Math.abs(v) > peak) peak = Math.abs(v);
+  if (rms <= 0 || peak <= 0) return;
+  const gain = Math.min(target / rms, peakCap / peak);
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const d = buffer.getChannelData(c);
+    for (let i = 0; i < d.length; i++) d[i] *= gain;
   }
 }

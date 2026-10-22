@@ -171,6 +171,8 @@ export interface TitleOverlay {
   hotkey?: number;
 }
 
+export type SoundGroup = 'asombro' | 'risa' | 'fail' | 'golpe' | 'transicion' | 'campana' | 'crujido' | 'otro';
+
 export interface SoundEffect {
   id: string;
   name: string;
@@ -179,6 +181,17 @@ export interface SoundEffect {
   /** Tecla rápida: una letra. */
   hotkey?: string;
   emoji: string;
+  group?: SoundGroup;
+  /** Duración en segundos. */
+  dur?: number;
+  /** Cuántos dB pierde en el parlante de un teléfono (medido). */
+  lossDb?: number;
+}
+
+/** Resultado de importar un catálogo o carpeta de sonidos. */
+export interface SoundImportResult {
+  added: SoundEffect[];
+  skipped: Array<{ name: string; reason: string }>;
 }
 
 export interface AppSettings {

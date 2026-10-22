@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AppSettings, SoundEffect, TitleFont, TitleOverlay, TitlePosition, TitleStyle } from '../../shared/types';
 import { Compositor } from '../lib/compositor';
+import { GROUPS, GROUP_EMOJI, guessGroup, MAX_DUR, MAX_LOSS_DB } from '../lib/soundgroups';
 
 interface Props {
   settings: AppSettings;
@@ -10,6 +11,8 @@ interface Props {
   onPlaySound: (id: string) => void;
   isVisible: (id: string) => boolean;
   onHideAll: () => void;
+  /** Mide duración y pérdida en teléfono de un archivo (para importar carpetas). */
+  onAnalyze: (path: string) => Promise<{ dur: number; lossDb: number }>;
 }
 
 const FONTS: TitleFont[] = ['Poppins', 'Bebas Neue', 'Playfair Display', 'Montserrat', 'Pacifico', 'Oswald', 'Lobster', 'Anton', 'Caveat', 'Righteous'];
@@ -28,7 +31,10 @@ const POSITIONS: Array<{ id: TitlePosition; name: string }> = [
 const PALETTE = ['#ffffff', '#6bc048', '#1b3a5c', '#4fd1c5', '#f56565', '#ecc94b', '#ed64a6', '#000000'];
 
 /** Pestaña de títulos (textos sobre el video) y sonidos. */
-export function TitlesPanel({ settings, onSave, onToast, onToggleTitle, onPlaySound, isVisible, onHideAll }: Props) {
+export function TitlesPanel({ settings, onSave, onToast, onToggleTitle, onPlaySound, isVisible, onHideAll, onAnalyze }: Props) {
+  const [importing, setImporting] = useState<string | null>(null);
+  const [skipped, setSkipped] = useState<Array<{ name: string; reason: string }>>([]);
+  const [groupFilter, setGroupFilter] = useState<string>('todos');
   const [selected, setSelected] = useState<string>(settings.titles[0]?.id ?? '');
   const [, tick] = useState(0);
   useEffect(() => {
@@ -50,21 +56,64 @@ export function TitlesPanel({ settings, onSave, onToast, onToggleTitle, onPlaySo
 
   const sounds = settings.sounds;
   const updateSound = (id: string, patch: Partial<SoundEffect>) => onSave({ ...settings, sounds: sounds.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
+  const LETTERS = 'qwertyuiopasdfghjklzxcvbnm'.split('');
+  const freeKeys = (used: Set<string | undefined>) => LETTERS.filter((k) => !used.has(k));
+
   const addSounds = async () => {
     const paths = await window.quirolive.sounds.pick();
     if (!paths.length) return;
-    const used = new Set(sounds.map((s) => s.hotkey));
-    const free = 'opasdfghjklzxcvbnm'.split('').filter((k) => !used.has(k));
-    const added: SoundEffect[] = paths.map((p, i) => ({
-      id: `snd-${Date.now()}-${i}`,
-      name: p.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') ?? 'Sonido',
-      source: p,
-      hotkey: free[i],
-      emoji: '🔊',
-    }));
-    await onSave({ ...settings, sounds: [...sounds, ...added] });
-    onToast(`${added.length} sonido(s) agregado(s)`);
+    await importFiles(paths.map((p) => ({ name: p.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') ?? 'Sonido', path: p, folder: '' })), true);
   };
+
+  /** Importa archivos: mide cada uno, filtra los que no sirven en live y agrupa por tipo. */
+  const importFiles = async (files: Array<{ name: string; path: string; folder: string; dur?: number; lossDb?: number }>, forceAll = false) => {
+    setImporting(`Analizando 0 de ${files.length}…`);
+    const used = new Set(sounds.map((s) => s.hotkey));
+    const keys = freeKeys(used);
+    const existing = new Set(sounds.map((s) => s.source));
+    const added: SoundEffect[] = [];
+    const skippedNow: Array<{ name: string; reason: string }> = [];
+    let i = 0;
+    for (const f of files) {
+      i++;
+      setImporting(`Analizando ${i} de ${files.length}: ${f.name}`);
+      if (/^pedo$/i.test(f.name)) { skippedNow.push({ name: f.name, reason: 'excluido por pedido' }); continue; }
+      if (existing.has(f.path)) { skippedNow.push({ name: f.name, reason: 'ya estaba' }); continue; }
+      let dur = f.dur;
+      let lossDb = f.lossDb;
+      if (dur === undefined || lossDb === undefined) {
+        try {
+          const m = await onAnalyze(f.path);
+          dur = dur ?? m.dur;
+          lossDb = lossDb ?? m.lossDb;
+        } catch {
+          skippedNow.push({ name: f.name, reason: 'no se pudo leer' });
+          continue;
+        }
+      }
+      if (!forceAll && dur > MAX_DUR) { skippedNow.push({ name: f.name, reason: `muy largo (${dur.toFixed(1)} s)` }); continue; }
+      if (!forceAll && lossDb > MAX_LOSS_DB) { skippedNow.push({ name: f.name, reason: `se pierde en teléfono (−${lossDb.toFixed(1)} dB)` }); continue; }
+      const group = guessGroup(f.name, f.folder);
+      added.push({ id: `snd-${Date.now()}-${i}`, name: f.name.replace(/[_-]+/g, ' '), source: f.path, hotkey: keys.shift(), emoji: GROUP_EMOJI[group], group, dur: Math.round(dur * 100) / 100, lossDb });
+    }
+    setImporting(null);
+    setSkipped(skippedNow);
+    if (added.length) await onSave({ ...settings, sounds: [...sounds, ...added] });
+    onToast(`${added.length} sonido(s) agregado(s), ${skippedNow.length} descartado(s)`);
+  };
+
+  const importCatalog = async () => {
+    const entries = await window.quirolive.sounds.importCatalog();
+    if (!entries.length) return onToast('No se encontraron archivos del catálogo (revisa que el JSON esté dentro de la carpeta assets).');
+    await importFiles(entries);
+  };
+  const importFolder = async () => {
+    const entries = await window.quirolive.sounds.importFolder();
+    if (!entries.length) return onToast('La carpeta no tiene audios.');
+    await importFiles(entries);
+  };
+
+  const visibleSounds = groupFilter === 'todos' ? sounds : sounds.filter((s) => (s.group ?? 'otro') === groupFilter);
 
   return (
     <div className="page wide">
@@ -156,7 +205,7 @@ export function TitlesPanel({ settings, onSave, onToast, onToggleTitle, onPlaySo
 
       <div className="card">
         <h3>
-          Sonidos
+          Sonidos ({sounds.length})
           <div className="grow" />
           <label className="row small-text" style={{ marginBottom: 0 }}>
             Volumen <input type="range" min={0} max={1} step={0.05} value={settings.sfxVolume} onChange={(e) => onSave({ ...settings, sfxVolume: Number(e.target.value) })} style={{ width: 110 }} />
@@ -164,20 +213,44 @@ export function TitlesPanel({ settings, onSave, onToast, onToggleTitle, onPlaySo
           <label className="row small-text" style={{ marginBottom: 0 }}>
             <input type="checkbox" style={{ width: 'auto' }} checked={settings.sfxMonitor} onChange={(e) => onSave({ ...settings, sfxMonitor: e.target.checked })} /> Escucharlos yo también
           </label>
-          <button className="small primary" onClick={addSounds}>+ Agregar mis sonidos (mp3, wav…)</button>
         </h3>
-        <p className="help">Los sonidos van directo a la transmisión y a la grabación. Si marcas "Escucharlos yo también" salen por tus parlantes: con el micrófono cerca puede acoplar, usa audífonos.</p>
+        <div className="row wrap" style={{ marginBottom: 10 }}>
+          <button className="small primary" onClick={importCatalog} disabled={!!importing}>📂 Importar catálogo (APTOS-PARA-LIVE.json)</button>
+          <button className="small" onClick={importFolder} disabled={!!importing}>📁 Importar carpeta completa</button>
+          <button className="small" onClick={addSounds} disabled={!!importing}>+ Archivos sueltos</button>
+          {importing && <span className="small-text muted">{importing}</span>}
+        </div>
+        <p className="help">
+          Al importar, cada sonido se mide: se descartan los de más de {MAX_DUR} s y los que pierden más de {MAX_LOSS_DB} dB en el parlante de un teléfono.
+          Todos se precargan en memoria y se normalizan al mismo nivel. Mientras suena un efecto tu voz baja 5 dB para que se escuche.
+          Si marcas "Escucharlos yo también" salen por tus parlantes: usa audífonos para no acoplar.
+        </p>
+        {skipped.length > 0 && (
+          <details style={{ marginBottom: 10 }}>
+            <summary className="small-text muted">{skipped.length} descartado(s): ver por qué</summary>
+            <ul className="small-text muted">{skipped.slice(0, 80).map((k, i) => <li key={i}>{k.name}: {k.reason}</li>)}</ul>
+          </details>
+        )}
+        <div className="row wrap" style={{ marginBottom: 10 }}>
+          <button className={`small ${groupFilter === 'todos' ? 'primary' : ''}`} onClick={() => setGroupFilter('todos')}>Todos</button>
+          {GROUPS.filter((g) => sounds.some((s) => (s.group ?? 'otro') === g.id)).map((g) => (
+            <button key={g.id} className={`small ${groupFilter === g.id ? 'primary' : ''}`} onClick={() => setGroupFilter(g.id)}>{g.emoji} {g.name}</button>
+          ))}
+        </div>
         <div className="sound-grid">
-          {sounds.map((s) => (
+          {visibleSounds.map((s) => (
             <div key={s.id} className="sound-card">
-              <button className="sound-play" onClick={() => onPlaySound(s.id)} title="Reproducir">
+              <button className="sound-play big" onClick={() => onPlaySound(s.id)} title={`${s.dur ? `${s.dur.toFixed(1)} s` : ''}${s.lossDb !== undefined ? ` · teléfono −${s.lossDb} dB` : ''}`}>
                 <span className="emoji">{s.emoji}</span>
-                <span>{s.name}</span>
+                <span className="name">{s.name}</span>
+                {s.hotkey && <span className="key">{s.hotkey.toUpperCase()}</span>}
               </button>
               <div className="row">
-                <input value={s.emoji} onChange={(e) => updateSound(s.id, { emoji: e.target.value.slice(0, 2) })} style={{ width: 44, textAlign: 'center' }} title="Emoji" />
+                <select value={s.group ?? 'otro'} onChange={(e) => updateSound(s.id, { group: e.target.value as SoundEffect['group'], emoji: GROUP_EMOJI[e.target.value as keyof typeof GROUP_EMOJI] })} style={{ width: 120 }} title="Grupo">
+                  {GROUPS.map((g) => <option key={g.id} value={g.id}>{g.emoji} {g.name}</option>)}
+                </select>
                 <input value={s.name} onChange={(e) => updateSound(s.id, { name: e.target.value })} className="grow" title="Nombre" />
-                <input value={s.hotkey ?? ''} maxLength={1} onChange={(e) => updateSound(s.id, { hotkey: e.target.value.toLowerCase() || undefined })} style={{ width: 44, textAlign: 'center' }} title="Tecla" placeholder="tecla" />
+                <input value={s.hotkey ?? ''} maxLength={1} onChange={(e) => updateSound(s.id, { hotkey: e.target.value.toLowerCase() || undefined })} style={{ width: 40, textAlign: 'center' }} title="Tecla" placeholder="·" />
                 <button className="small ghost" onClick={() => onSave({ ...settings, sounds: sounds.filter((x) => x.id !== s.id) })} title="Quitar">✕</button>
               </div>
             </div>
