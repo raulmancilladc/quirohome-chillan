@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AppSettings, ChatMessage, Orientation, StreamStatus, SuggestedAnswer } from '../shared/types';
 import type { AnsweredEvent } from '../electron/preload';
-import { Compositor, SIZES } from './lib/compositor';
+import { Compositor, SIZES, SIZES_LIGHT } from './lib/compositor';
 import { StreamRecorder } from './lib/recorder';
 import { AudioMonitor, type AudioReport } from './lib/audiomonitor';
 import { SourcesBar } from './components/SourcesBar';
@@ -82,6 +82,7 @@ export default function App() {
       }
       setSourcesLoaded(true);
       const c = new Compositor(s.orientation);
+      c.setOrientation(s.orientation, s.performance === 'light');
       c.brandLabel = s.business.name;
       c.mirror = false;
       compositor.current = c;
@@ -119,6 +120,13 @@ export default function App() {
     setDevices({ cams: list.filter((d) => d.kind === 'videoinput'), mics: list.filter((d) => d.kind === 'audioinput') });
   }, []);
 
+  // Cambios de rendimiento desde Ajustes: recomponer el canvas.
+  useEffect(() => {
+    if (settings && compositor.current && status.state === 'idle') {
+      compositor.current.setOrientation(settings.orientation, settings.performance === 'light');
+    }
+  }, [settings?.performance, settings?.orientation, status.state]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Si se conecta o desconecta una cámara (ej. la Osmo por USB), refrescar la lista.
   useEffect(() => {
     navigator.mediaDevices.addEventListener('devicechange', refreshDevices);
@@ -126,8 +134,14 @@ export default function App() {
   }, [refreshDevices]);
 
   async function openCamera(deviceId: string): Promise<{ stream: MediaStream; video: HTMLVideoElement }> {
+    const want4k = settings?.cameraMax === '4k';
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { deviceId: deviceId ? { exact: deviceId } : undefined, width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 30 } },
+      video: {
+        deviceId: deviceId ? { exact: deviceId } : undefined,
+        width: { ideal: want4k ? 3840 : 1920 },
+        height: { ideal: want4k ? 2160 : 1080 },
+        frameRate: { ideal: 30 },
+      },
       audio: false,
     });
     const video = document.createElement('video');
@@ -159,7 +173,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [camId, showToast, refreshDevices]);
+  }, [camId, showToast, refreshDevices, settings?.cameraMax]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Segunda cámara en recuadro (opcional).
   useEffect(() => {
@@ -261,27 +275,31 @@ export default function App() {
 
   const setOrientation = (o: Orientation) => {
     if (!settings || status.state !== 'idle') return;
-    compositor.current?.setOrientation(o);
+    compositor.current?.setOrientation(o, settings.performance === 'light');
     void save({ ...settings, orientation: o });
   };
 
   const goLive = async () => {
     if (!settings || !compositor.current) return;
-    const { width, height } = SIZES[settings.orientation];
+    const light = settings.performance === 'light';
+    const { width, height } = (light ? SIZES_LIGHT : SIZES)[settings.orientation];
+    const fps = light ? Math.min(settings.fps, 24) : settings.fps;
+    const videoBitrateKbps = light ? Math.min(settings.videoBitrateKbps, 2500) : settings.videoBitrateKbps;
     try {
       await window.quirolive.stream.start({
         targets: settings.targets,
         orientation: settings.orientation,
         width,
         height,
-        fps: settings.fps,
-        videoBitrateKbps: settings.videoBitrateKbps,
+        fps,
+        videoBitrateKbps,
         audioBitrateKbps: settings.audioBitrateKbps,
         recordLocally: settings.recordLocally,
         recordingQuality: settings.recordingQuality,
+        hardwareEncoder: settings.hardwareEncoder,
       });
       const rec = new StreamRecorder();
-      rec.start(compositor.current.canvas, micStream.current?.getAudioTracks()[0] ?? null, settings.fps, settings.videoBitrateKbps);
+      rec.start(compositor.current.canvas, micStream.current?.getAudioTracks()[0] ?? null, fps, videoBitrateKbps);
       recorder.current = rec;
       await window.quirolive.chat.connect();
     } catch (err) {

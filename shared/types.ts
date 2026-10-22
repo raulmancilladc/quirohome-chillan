@@ -20,6 +20,7 @@ export interface StreamTarget {
 export interface StreamStartOptions {
   targets: StreamTarget[];
   recordingQuality: RecordingQuality;
+  hardwareEncoder: boolean;
   orientation: Orientation;
   width: number;
   height: number;
@@ -135,6 +136,10 @@ export interface AnsweredRecord {
 
 export type RecordingQuality = 'stream' | 'high';
 
+/** 'light' baja resolución interna, fps y resolución de cámara para Macs cargados. */
+export type PerformanceMode = 'normal' | 'light';
+export type CameraMax = '1080p' | '4k';
+
 export interface SourceSettings {
   camId: string;
   pipCamId: string;
@@ -158,6 +163,10 @@ export interface AppSettings {
   recordLocally: boolean;
   /** 'high' graba un archivo aparte en alta calidad (ideal para sacar reels). */
   recordingQuality: RecordingQuality;
+  performance: PerformanceMode;
+  cameraMax: CameraMax;
+  /** Usar el codificador de hardware (VideoToolbox / NVENC / QuickSync) si está disponible. */
+  hardwareEncoder: boolean;
   /** Mostrar los comentarios del público sobre el video (quedan en la grabación). */
   showCommentsOnVideo: boolean;
   blockedUsers: BlockedUser[];

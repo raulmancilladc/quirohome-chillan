@@ -42,6 +42,23 @@ export function Settings({ settings, onSave, onToast }: Props) {
             </select>
           </div>
         </div>
+        <div className="grid-2">
+          <div className="field">
+            <label>Rendimiento</label>
+            <select value={settings.performance} onChange={(e) => onSave({ ...settings, performance: e.target.value as AppSettings['performance'] })}>
+              <option value="normal">Normal (1080p)</option>
+              <option value="light">Ligero (720p, 24 fps) — si el Mac se traba o usas TikTok LIVE Studio a la vez</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>Resolución pedida a la cámara</label>
+            <select value={settings.cameraMax} onChange={(e) => onSave({ ...settings, cameraMax: e.target.value as AppSettings['cameraMax'] })}>
+              <option value="1080p">1080p (recomendado)</option>
+              <option value="4k">4K (más nítido, mucho más pesado)</option>
+            </select>
+          </div>
+        </div>
+        <label className="row"><input type="checkbox" style={{ width: 'auto' }} checked={settings.hardwareEncoder} onChange={(e) => onSave({ ...settings, hardwareEncoder: e.target.checked })} /> Usar el codificador de video del chip (VideoToolbox en Mac): mucho menos uso de procesador</label>
         <label className="row"><input type="checkbox" style={{ width: 'auto' }} checked={settings.recordLocally} onChange={(e) => onSave({ ...settings, recordLocally: e.target.checked })} /> Guardar una copia de cada transmisión en la carpeta Videos</label>
         {settings.recordLocally && (
           <div className="field" style={{ marginTop: 8 }}>

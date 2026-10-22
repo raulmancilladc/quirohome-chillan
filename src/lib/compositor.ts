@@ -20,6 +20,11 @@ export const SIZES: Record<Orientation, { width: number; height: number }> = {
   vertical: { width: 1080, height: 1920 },
   horizontal: { width: 1920, height: 1080 },
 };
+/** Modo ligero: 720p, la mitad de píxeles que procesar. */
+export const SIZES_LIGHT: Record<Orientation, { width: number; height: number }> = {
+  vertical: { width: 720, height: 1280 },
+  horizontal: { width: 1280, height: 720 },
+};
 
 /**
  * Dibuja la cámara en un canvas con la orientación elegida (recorte tipo "cover")
@@ -62,9 +67,9 @@ export class Compositor {
     this.ctx = this.canvas.getContext('2d', { alpha: false })!;
   }
 
-  setOrientation(o: Orientation) {
+  setOrientation(o: Orientation, light = false) {
     this.orientation = o;
-    const { width, height } = SIZES[o];
+    const { width, height } = (light ? SIZES_LIGHT : SIZES)[o];
     this.canvas.width = width;
     this.canvas.height = height;
   }

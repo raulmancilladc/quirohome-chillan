@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, execFile, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,13 +9,65 @@ import type { StreamStartOptions, StreamStatus } from '../../shared/types';
  * (WebM generado por MediaRecorder) y lo re-codifica una sola vez con FFmpeg,
  * enviándolo en paralelo a todas las plataformas con el muxer "tee".
  */
+export type VideoEncoder = 'libx264' | 'h264_videotoolbox' | 'h264_nvenc' | 'h264_qsv' | 'h264_amf';
+
+/** Detecta qué codificadores de hardware trae este FFmpeg, en orden de preferencia por sistema. */
+export function detectHardwareEncoder(ffmpegPath: string): Promise<VideoEncoder | null> {
+  const prefer: VideoEncoder[] =
+    process.platform === 'darwin' ? ['h264_videotoolbox']
+    : process.platform === 'win32' ? ['h264_nvenc', 'h264_qsv', 'h264_amf']
+    : ['h264_nvenc', 'h264_qsv'];
+  return new Promise((resolve) => {
+    execFile(ffmpegPath, ['-hide_banner', '-encoders'], { timeout: 10_000 }, (err, stdout) => {
+      if (err) return resolve(null);
+      const found = prefer.find((e) => new RegExp(`\\s${e}\\s`).test(stdout));
+      resolve(found ?? null);
+    });
+  });
+}
+
+/** Argumentos de video según el codificador. 'stream' = tiempo real a bitrate fijo; 'hq' = grabación de alta calidad. */
+function videoArgs(encoder: VideoEncoder, kind: 'stream' | 'hq', fps: number, kbps: number): string[] {
+  const gop = String(fps * 2);
+  const common = ['-pix_fmt', 'yuv420p', '-r', String(fps), '-g', gop];
+  const vb = `${kbps}k`;
+  switch (encoder) {
+    case 'h264_videotoolbox':
+      return kind === 'stream'
+        ? ['-c:v', 'h264_videotoolbox', '-realtime', '1', '-profile:v', 'main', '-b:v', vb, '-maxrate', vb, '-bufsize', `${kbps * 2}k`, ...common]
+        : ['-c:v', 'h264_videotoolbox', '-profile:v', 'high', '-b:v', '16000k', ...common];
+    case 'h264_nvenc':
+      return kind === 'stream'
+        ? ['-c:v', 'h264_nvenc', '-preset', 'p4', '-tune', 'll', '-rc', 'cbr', '-b:v', vb, '-maxrate', vb, '-bufsize', `${kbps * 2}k`, ...common]
+        : ['-c:v', 'h264_nvenc', '-preset', 'p5', '-rc', 'vbr', '-cq', '19', '-b:v', '0', ...common];
+    case 'h264_qsv':
+      return kind === 'stream'
+        ? ['-c:v', 'h264_qsv', '-preset', 'veryfast', '-b:v', vb, '-maxrate', vb, '-bufsize', `${kbps * 2}k`, ...common]
+        : ['-c:v', 'h264_qsv', '-preset', 'medium', '-global_quality', '19', ...common];
+    case 'h264_amf':
+      return kind === 'stream'
+        ? ['-c:v', 'h264_amf', '-usage', 'lowlatency', '-rc', 'cbr', '-b:v', vb, '-maxrate', vb, '-bufsize', `${kbps * 2}k`, ...common]
+        : ['-c:v', 'h264_amf', '-quality', 'quality', '-rc', 'cqp', '-qp_i', '19', '-qp_p', '21', ...common];
+    default:
+      return kind === 'stream'
+        ? ['-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'zerolatency', '-profile:v', 'main', '-keyint_min', gop, '-sc_threshold', '0', '-b:v', vb, '-maxrate', vb, '-bufsize', `${kbps * 2}k`, ...common]
+        : ['-c:v', 'libx264', '-preset', 'fast', '-crf', '17', ...common];
+  }
+}
+
 export class StreamEngine extends EventEmitter {
   private proc: ChildProcess | null = null;
+  /** Codificador de hardware detectado (null = solo software). */
+  hardwareEncoder: VideoEncoder | null = null;
   private status: StreamStatus = { state: 'idle' };
   private stderrTail: string[] = [];
 
   constructor(private readonly ffmpegPath: string, private readonly recordingsDir: string) {
     super();
+    void detectHardwareEncoder(ffmpegPath).then((e) => {
+      this.hardwareEncoder = e;
+      this.emit('log', e ? `Codificador de hardware disponible: ${e}` : 'Sin codificador de hardware: se usa libx264 (CPU)');
+    });
   }
 
   getStatus(): StreamStatus {
@@ -38,6 +90,7 @@ export class StreamEngine extends EventEmitter {
       outputs.push(`[f=flv:onfail=ignore]${escapeTee(url)}`);
     }
 
+    const encoder: VideoEncoder = opts.hardwareEncoder && this.hardwareEncoder ? this.hardwareEncoder : 'libx264';
     let recordingPath: string | null = null;
     let highQualityArgs: string[] = [];
     if (opts.recordLocally) {
@@ -49,8 +102,7 @@ export class StreamEngine extends EventEmitter {
         recordingPath = path.join(this.recordingsDir, `live-${stamp}-${opts.orientation}-HQ.mp4`);
         highQualityArgs = [
           '-map', '0:v:0', '-map', '0:a:0?',
-          '-c:v', 'libx264', '-preset', 'fast', '-crf', '17', '-pix_fmt', 'yuv420p',
-          '-r', String(opts.fps), '-g', String(opts.fps * 2),
+          ...videoArgs(encoder, 'hq', opts.fps, opts.videoBitrateKbps),
           '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2',
           '-movflags', '+frag_keyframe+empty_moov+default_base_moof',
           '-f', 'mp4', recordingPath,
@@ -65,8 +117,7 @@ export class StreamEngine extends EventEmitter {
       throw new Error('No hay destinos activos con clave de transmisión ni grabación local.');
     }
 
-    const gop = opts.fps * 2;
-    const vb = `${opts.videoBitrateKbps}k`;
+    this.emit('log', `Codificador de video: ${encoder}`);
     const args = ['-hide_banner', '-loglevel', 'warning', '-fflags', '+genpts', '-i', 'pipe:0'];
 
     if (outputs.length > 0) {
@@ -76,18 +127,7 @@ export class StreamEngine extends EventEmitter {
       args.push(
         '-map', '0:v:0',
         '-map', '0:a:0?',
-        '-c:v', 'libx264',
-        '-preset', 'veryfast',
-        '-tune', 'zerolatency',
-        '-profile:v', 'main',
-        '-pix_fmt', 'yuv420p',
-        '-r', String(opts.fps),
-        '-g', String(gop),
-        '-keyint_min', String(gop),
-        '-sc_threshold', '0',
-        '-b:v', vb,
-        '-maxrate', vb,
-        '-bufsize', `${opts.videoBitrateKbps * 2}k`,
+        ...videoArgs(encoder, 'stream', opts.fps, opts.videoBitrateKbps),
         '-c:a', 'aac',
         '-b:a', `${opts.audioBitrateKbps}k`,
         '-ar', '44100',
